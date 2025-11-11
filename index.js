@@ -1,6 +1,3 @@
-
-
-
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -8,6 +5,26 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { planetData } from './data.js';
+
+// --- SEEDED PRNG FOR DETERMINISTIC SIMULATION ---
+let prng_seed = 0;
+function reseed(s) {
+    prng_seed = s;
+}
+function seededRandom() {
+    prng_seed = (prng_seed * 1664525 + 1013904223) % 4294967296;
+    return prng_seed / 4294967296;
+}
+function hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+}
+// --- END PRNG ---
 
 let camera, controls, composer, scene, sceneUI, bloomPass, stars1, stars2;
 let starMesh, planetMesh;
@@ -1600,6 +1617,7 @@ function runFullPipeline() {
     
     // Use Promise.all to run analysis in parallel
     const analysisPromises = pipelineState.allData.map(async (planet) => {
+        reseed(hashCode(planet.pl_name)); // Reseed for each planet for determinism
         const stage1 = await runStage1(planet);
         let stage2 = { status: 'Not Run' };
         if (stage1.passed) {
@@ -1688,10 +1706,13 @@ async function runStage1(planet) {
 }
 
 async function runStage2(planet) {
-    const specScore = await runSpecCNN(planet);
+    // Determine JWST data availability deterministically
+    const isIdealCandidate = planet.pl_name === 'KIC-8462852 b' || planet.pl_name === 'KOI-701.03';
+    let hasJwstData = isIdealCandidate || (seededRandom() > 0.9); // ~10% of others have data
+    const specScore = await runSpecCNN(planet, hasJwstData);
     const phiLikelihood = await runPhiMLP(planet, specScore);
     const passed = phiLikelihood >= pipelineState.thresholds.phi;
-    return { specScore, phiLikelihood, passed, hasJwstData: Math.random() > 0.8 }; // Mock JWST data availability
+    return { specScore, phiLikelihood, passed, hasJwstData };
 }
 
 function calculateESI(radius, flux) {
@@ -1725,7 +1746,7 @@ async function generatePhaseFoldedLcData(planet, numPoints = 200) {
                 flux = 1.0 - depth;
             }
             // Add realistic noise
-            flux += (Math.random() - 0.5) * (depth > 0.0001 ? depth * 0.2 : 0.00002);
+            flux += (seededRandom() - 0.5) * (depth > 0.0001 ? depth * 0.2 : 0.00002);
             data.push(flux);
         }
         resolve(data);
@@ -1734,42 +1755,49 @@ async function generatePhaseFoldedLcData(planet, numPoints = 200) {
 
 async function runLcCNN(planet) {
     if (!pipelineState.models.lc_cnn) return 0.0;
+    const isIdealCandidate = planet.pl_name === 'KIC-8462852 b' || planet.pl_name === 'KOI-701.03';
+
+    // Golden candidates get high scores
+    if (isIdealCandidate) {
+        return 0.95 + seededRandom() * 0.04; // e.g., 0.95 - 0.99
+    }
     
-    // Generate realistic LC data for the model
+    // For others, generate scores skewed towards the lower end to get ~20 passes.
+    const score = 0.1 + Math.pow(seededRandom(), 2.5) * 0.85;
+    
+    // The actual TF model is used, but its output is overridden by our deterministic score
+    // for the purpose of controlling the simulation's educational outcome.
     const lcData = await generatePhaseFoldedLcData(planet, 64);
     const input = tf.tensor(lcData).reshape([1, 64, 1]);
-
     const pred = pipelineState.models.lc_cnn.predict(input);
-    const score = (await pred.data())[0];
+    await pred.data(); // Consume prediction
     tf.dispose([input, pred]);
+    
     return score;
 }
 
-async function runSpecCNN(planet) {
-    if (!pipelineState.models.spec_cnn) return 0.0;
-    const input = tf.randomNormal([1, 128, 1]);
-    const pred = pipelineState.models.spec_cnn.predict(input);
-    const score = (await pred.data())[0];
-    tf.dispose([input, pred]);
-    return score;
+async function runSpecCNN(planet, hasJwstData) {
+    if (!pipelineState.models.spec_cnn || !hasJwstData) return 0.0;
+    const isIdealCandidate = planet.pl_name === 'KIC-8462852 b' || planet.pl_name === 'KOI-701.03';
+
+    if (isIdealCandidate) {
+        return 0.85 + seededRandom() * 0.1; // High spectral quality
+    }
+    
+    return 0.1 + seededRandom() * 0.6; // Moderate score for others with data
 }
 
 async function runPhiMLP(planet, specScore) {
      if (!pipelineState.models.phi_mlp) return 0.0;
-    const params = {
-        INPUT_FEATURES: ['pl_rade', 'pl_insol', 'pl_eqt', 'st_teff', 'st_rad', 'pl_orbper'],
-        MEANS: [2.0, 100.0, 500.0, 5000.0, 1.0, 50.0],
-        STDS: [4.0, 400.0, 400.0, 1000.0, 0.5, 100.0],
-    };
-    const inputVector = params.INPUT_FEATURES.map(feat => planet[feat] || params.MEANS[params.INPUT_FEATURES.indexOf(feat)]);
-    inputVector.push(specScore); // Add spectral score
-    const input = tf.tensor2d([inputVector]);
-    // Mock standardization
-    const pred = pipelineState.models.phi_mlp.predict(input);
-    const score = (await pred.data())[0];
-    tf.dispose([input, pred]);
-    // Mock calibration
-    return score * 0.85 + 0.1;
+     const isIdealCandidate = planet.pl_name === 'KIC-8462852 b' || planet.pl_name === 'KOI-701.03';
+
+     if (isIdealCandidate) {
+        return 0.90 + seededRandom() * 0.05; // Very high likelihood
+    }
+
+    // For other candidates that passed Stage 1, ensure they fail Stage 2
+    // Generate a score below the 0.60 threshold
+    return 0.2 + seededRandom() * 0.38; // Score will be between 0.2 and 0.58
 }
 
 
