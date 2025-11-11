@@ -1,10 +1,13 @@
 
+
+
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { planetData } from './data.js';
 
 let camera, controls, composer, scene, sceneUI, bloomPass, stars1, stars2;
 let starMesh, planetMesh;
@@ -71,8 +74,6 @@ const ABSORPTION_FEATURES = {
 
 let atmosphereState = {
     concentrations: { 'H₂O': 70, 'CO₂': 80, 'CH₄': 20, 'CO': 40, 'K': 50, 'SO₂': 10, 'O₂': 15, 'O₃': 5 },
-    cloudiness: 20, // in percent
-    noisePPM: 50, // parts-per-million
 };
 
 let derivedPlanetData = {};
@@ -93,8 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initPipeline();
     initSidebarScrollspy();
     
-    document.getElementById('print-button').addEventListener('click', () => window.print());
-
     window.addEventListener('scroll', handleMainScroll);
     handleMainScroll(); // Initial call to set states
 });
@@ -128,6 +127,7 @@ function handleMainScroll() {
     const resultsSection = document.getElementById('results-section');
     const conclusionsSection = document.getElementById('conclusions-section');
     const referencesSection = document.getElementById('references-section');
+    const extraResourcesSection = document.getElementById('extra-resources-section');
     const footer = document.querySelector('footer');
     const candidateTextTop = document.getElementById('candidate-text-top');
     const candidateTextBottom = document.getElementById('candidate-text-bottom');
@@ -150,6 +150,7 @@ function handleMainScroll() {
     resultsSection.style.opacity = contentOpacity;
     conclusionsSection.style.opacity = contentOpacity;
     referencesSection.style.opacity = contentOpacity;
+    if (extraResourcesSection) extraResourcesSection.style.opacity = contentOpacity;
     footer.style.opacity = contentOpacity;
 
     const headerTitle = document.getElementById('header-title');
@@ -618,26 +619,11 @@ function initializeInteractiveAtmospherePanel() {
                 <div class="spectroscopy-controls">
                     <h4>Atmospheric Composition</h4>
                     ${generateControls(gases)}
-                    <h4 style="margin-top: 1.5rem;">Global Properties</h4>
-                    <div class="control-group green">
-                        <label for="cloud-slider">Cloudiness <span id="cloud-value">${atmosphereState.cloudiness}%</span></label>
-                        <input type="range" id="cloud-slider" min="0" max="100" step="1" value="${atmosphereState.cloudiness}">
-                    </div>
-                    <h4 style="margin-top: 1.5rem;">Instrument Simulation</h4>
-                    <div class="control-group green">
-                        <label for="noise-select">Noise Level</label>
-                        <select id="noise-select">
-                            <option value="0">Off (Model only)</option>
-                            <option value="20">20 ppm</option>
-                            <option value="50" ${atmosphereState.noisePPM === 50 ? 'selected' : ''}>50 ppm</option>
-                            <option value="80">80 ppm</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="spectroscopy-main-content">
                     <div class="chart-container" style="background-color: #0c101a; flex-grow: 1; display: flex; flex-direction: column; position: relative; border-color: rgba(255,255,255,0.3);">
                         <div id="spec-info-button" style="position: absolute; top: 10px; right: 10px; cursor: pointer; z-index: 10; font-size: 1.5rem; color: #ccc; line-height: 1;" title="About this simulation">&#9432;</div>
-                        <canvas id="atmosphere-chart" style="flex-grow: 1; min-height: 300px;"></canvas>
+                        <canvas id="atmosphere-chart" style="flex-grow: 1; min-height: 260px;"></canvas>
                     </div>
                 </div>
             </div>
@@ -659,18 +645,6 @@ function initializeInteractiveAtmospherePanel() {
             updateUI();
         });
     });
-    
-    panelBody.querySelector('#cloud-slider').addEventListener('input', e => {
-        const value = parseInt(e.target.value, 10);
-        atmosphereState.cloudiness = value;
-        document.getElementById('cloud-value').textContent = `${value}%`;
-        updateUI();
-    });
-
-    panelBody.querySelector('#noise-select').addEventListener('change', e => {
-        atmosphereState.noisePPM = parseInt(e.target.value, 10);
-        updateUI();
-    });
 
     // Modal logic
     const modal = document.getElementById('spectroscopy-info-modal');
@@ -690,17 +664,14 @@ function updateAtmosphereChart() {
     
     const baselineDepth = 0.0210; // 2.10%, a fixed baseline independent of transit controls
 
-    const { modelLabels, modelData, noisyData, bandAnnotations } = getAtmosphereSpectrumData(
+    const { modelLabels, modelData, bandAnnotations } = getAtmosphereSpectrumData(
         atmosphereState.concentrations,
         derivedPlanetData, // Still used for atmospheric potential calculation
-        atmosphereState.cloudiness,
-        atmosphereState.noisePPM,
         baselineDepth
     );
 
     atmosphereChart.data.labels = modelLabels;
     atmosphereChart.data.datasets[0].data = modelData; // Best-fit model line
-    atmosphereChart.data.datasets[1].data = noisyData; // Data points
     
     atmosphereChart.options.plugins.annotation.annotations = bandAnnotations;
     
@@ -1248,22 +1219,13 @@ function createAtmosphereChart() {
             labels: [],
             datasets: [
                 { 
-                    label: 'Best-fit Model', 
+                    label: 'Atmospheric Model', 
                     data: [], 
                     borderColor: 'rgba(255, 255, 255, 0.9)', 
                     pointRadius: 0, 
                     borderWidth: 2,
                     tension: 0.4,
                     yAxisID: 'y'
-                },
-                {
-                    type: 'scatter',
-                    label: 'Data',
-                    data: [],
-                    yAxisID: 'y',
-                    pointRadius: 2,
-                    pointBackgroundColor: 'rgba(255, 255, 255, 0.5)',
-                    pointBorderColor: 'transparent',
                 }
             ]
         },
@@ -1299,10 +1261,6 @@ function createAtmosphereChart() {
                         boxWidth: 15, 
                         padding: 20, 
                         font: { family: "'Inter', sans-serif", size: 14 },
-                        usePointStyle: true,
-                        pointStyle: (context) => {
-                            return context.datasetIndex === 0 ? 'rect' : 'circle';
-                        }
                     },
                 }, 
                 title: { 
@@ -1331,7 +1289,8 @@ function createAtmosphereChart() {
     updateAtmosphereChart();
 }
 
-function getAtmosphereSpectrumData(composition, planetProps, cloudiness, noisePPM, baselineDepth) {
+function getAtmosphereSpectrumData(composition, planetProps, baselineDepth) {
+    const cloudiness = 0; // Control removed from UI
     const { tempK, surfaceGravity } = planetProps;
     const tempFactor = Math.exp(-Math.pow((tempK || 288) - 288, 2) / (2 * Math.pow(200, 2)));
     const g = surfaceGravity || 9.8;
@@ -1379,12 +1338,6 @@ function getAtmosphereSpectrumData(composition, planetProps, cloudiness, noisePP
         
         modelData.push(avgY);
     }
-    
-    const noiseFrac = noisePPM / 1e6;
-    const noisyData = modelData.map((y, i) => ({
-        x: modelLabels[i],
-        y: y + (Math.random() - 0.5) * 2 * noiseFrac
-    }));
 
     const bandAnnotations = {};
     const bandDefs = {
@@ -1424,7 +1377,7 @@ function getAtmosphereSpectrumData(composition, planetProps, cloudiness, noisePP
         };
     });
 
-    return { modelLabels, modelData: modelData.map(d => d*100), noisyData: noisyData.map(d => ({x: d.x, y: d.y*100})), bandAnnotations };
+    return { modelLabels, modelData: modelData.map(d => d*100), bandAnnotations };
 }
 
 
@@ -1518,11 +1471,9 @@ function renderPipelineLayout(container) {
         <div class="limitations-container glass-panel glass-panel-yellow">
             <h3>Limitations & Considerations</h3>
             <ul class="limitations-list">
-                <li><strong>Model Simplification:</strong> The AI models here are conceptual demonstrations. Real-world models are vastly more complex, trained on huge, proprietary datasets, and require significant computational power.</li>
-                <li><strong>Data Availability & In-situ Limits:</strong> Current observation limits mean AI-based analysis relies on inferences, not direct atmospheric measurements. JWST time is limited, and most Kepler planets lack high-resolution spectra. Habitability assessments remain constrained by available data and by the absence of in-situ exploration.</li>
-                <li><strong>Probabilistic Nature:</strong> All AI scores are probabilities, not certainties. A high score means a candidate is promising and warrants further study, but does not guarantee a habitable world.</li>
-                <li><strong>ESI Limitations:</strong> The Earth Similarity Index is a useful first-pass metric but is based on bulk properties (radius, stellar flux) and does not account for atmospheric composition, which is critical for habitability.</li>
-                 <li><strong>Integrated Workflow:</strong> A cost-effective approach is to use ESI for broad screening (Stage-1) with inexpensive Kepler data, then apply spectroscopic information (e.g., JWST) to estimate PHI for promising candidates (Stage-2). This two step approach reduces data volume, improves prioritization, and highlights planets that merit deeper follow-up.</li>
+                <li><strong>Data & Observational Constraints:</strong> The pipeline's effectiveness is fundamentally tied to data quality and availability. JWST observation time is a scarce resource, meaning most candidates lack the high-resolution atmospheric spectra needed for definitive PHI analysis. ESI, while a useful initial filter, is a coarse metric based on bulk properties and cannot confirm habitability alone.</li>
+                <li><strong>AI Model & Interpretation:</strong> The models used here are simplified demonstrations for educational purposes. Real-world AI involves far greater complexity. Crucially, all AI-generated scores are <strong>probabilistic</strong>, not deterministic. A high likelihood score identifies a statistically promising target for further study; it is not a direct confirmation of habitability.</li>
+                <li><strong>The Search is a Marathon:</strong> This framework is a tool for prioritization, not a finish line. Each shortlisted candidate requires extensive, multi-faceted follow-up observations to move from "potential candidate" to "confirmed habitable world".</li>
             </ul>
         </div>
     `;
@@ -1625,40 +1576,17 @@ function addEventListeners() {
 
 async function fetchData() {
     const statusEl = document.getElementById('data-table-status');
-    statusEl.textContent = 'Loading data from NASA Exoplanet Archive...';
-    
-    const NEA_URL = `https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+pl_name,pl_rade,pl_insol,pl_orbper,pl_eqt,st_teff,st_rad,disc_facility,pl_masse,pl_dens,pl_orbsmax,st_mass,st_lum,disc_year,discoverymethod+from+ps+where+disc_facility+=+'Kepler'+and+pl_rade+is+not+null+and+pl_insol+is+not+null+and+pl_orbper+is+not+null&format=json`;
-    const fallbackData = [{"pl_name":"Kepler-1343 b","pl_rade":1.03,"pl_insol":0.93,"pl_orbper":11.0964172,"pl_eqt":262,"st_teff":5001,"st_rad":0.71,"disc_facility":"Kepler","pl_masse":2.7,"pl_dens":12.5,"pl_orbsmax":0.08,"st_mass":0.7,"st_lum":0.3,"disc_year":2016,"discoverymethod":"Transit"},{"pl_name":"Kepler-22 b","pl_rade":2.1,"pl_insol":1.11,"pl_orbper":289.86,"pl_eqt":262,"st_teff":5518,"st_rad":0.96,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":0.85,"st_mass":0.97,"st_lum":0.79,"disc_year":2011,"discoverymethod":"Transit"},{"pl_name":"Kepler-186 f","pl_rade":1.17,"pl_insol":0.29,"pl_orbper":129.94,"pl_eqt":188,"st_teff":3754,"st_rad":0.52,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":0.4,"st_mass":0.54,"st_lum":0.05,"disc_year":2014,"discoverymethod":"Transit"},{"pl_name":"Kepler-442 b","pl_rade":1.34,"pl_insol":0.68,"pl_orbper":112.3053,"pl_eqt":233,"st_teff":4402,"st_rad":0.6,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":0.41,"st_mass":0.61,"st_lum":0.11,"disc_year":2015,"discoverymethod":"Transit"},{"pl_name":"Kepler-62 f","pl_rade":1.41,"pl_insol":0.38,"pl_orbper":267.291,"pl_eqt":208,"st_teff":4925,"st_rad":0.64,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":0.72,"st_mass":0.69,"st_lum":0.21,"disc_year":2013,"discoverymethod":"Transit"},{"pl_name":"Kepler-1229 b","pl_rade":1.34,"pl_insol":0.46,"pl_orbper":86.829,"pl_eqt":213,"st_teff":3723,"st_rad":0.54,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":0.31,"st_mass":0.54,"st_lum":0.06,"disc_year":2016,"discoverymethod":"Transit"},{"pl_name":"Kepler-1649 c","pl_rade":1.06,"pl_insol":0.75,"pl_orbper":19.53527,"pl_eqt":234,"st_teff":3240,"st_rad":0.29,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":0.08,"st_mass":0.2,"st_lum":0.05,"disc_year":2020,"discoverymethod":"Transit"},{"pl_name":"Kepler-452 b","pl_rade":1.5,"pl_insol":1.11,"pl_orbper":384.84,"pl_eqt":265,"st_teff":5757,"st_rad":1.11,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":1.05,"st_mass":1.04,"st_lum":1.22,"disc_year":2015,"discoverymethod":"Transit"},{"pl_name":"KIC-10905746 b","pl_rade":1.15,"pl_insol":0.99,"pl_orbper":358.7,"pl_eqt":265,"st_teff":5800,"st_rad":0.99,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":1.0,"st_mass":1.0,"st_lum":1.0,"disc_year":2017,"discoverymethod":"Transit"},{"pl_name":"KOI-4878.01","pl_rade":1.04,"pl_insol":0.92,"pl_orbper":449.03,"pl_eqt":256,"st_teff":5880,"st_rad":1.05,"disc_facility":"Kepler","pl_masse":null,"pl_dens":null,"pl_orbsmax":1.12,"st_mass":1.1,"st_lum":1.0,"disc_year":2015,"discoverymethod":"Transit"}];
-    
-    // STAGE 1: Direct fetch attempt
-    try {
-        console.log("Attempting direct fetch from NASA Exoplanet Archive...");
-        const response = await fetch(NEA_URL);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        pipelineState.allData = await response.json();
-        console.log("Direct fetch successful.");
-    } catch (directError) {
-        console.warn(`Direct fetch failed: ${directError.message}. Falling back to proxy.`);
-        
-        // STAGE 2: Proxy fetch attempt
-        const PROXY_URL = `https://corsproxy.io/?${encodeURIComponent(NEA_URL)}`;
-        try {
-            console.log("Attempting fetch via stable proxy...");
-            const response = await fetch(PROXY_URL);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            pipelineState.allData = await response.json();
-            console.log("Proxy fetch successful.");
-        } catch (proxyError) {
-            console.error(`Proxy fetch also failed: ${proxyError.message}. Using embedded offline data.`);
+    statusEl.textContent = 'Loading local planet data...';
 
-            // STAGE 3: Offline fallback
-            pipelineState.allData = fallbackData;
-            document.getElementById('offline-banner').style.display = 'block';
-        }
-    }
+    // Use the imported data directly
+    pipelineState.allData = planetData;
+    console.log(`Loaded ${planetData.length} planets from local data file.`);
 
-    statusEl.style.display = 'none';
-    runFullPipeline();
+    // Simulate a short delay to show the loading message
+    setTimeout(() => {
+        statusEl.style.display = 'none';
+        runFullPipeline();
+    }, 100);
 }
 
 function runFullPipeline() {
@@ -1977,37 +1905,6 @@ function renderTable() {
     });
 }
 
-function generateAtmosphereForPlanet(planet) {
-    const { pl_eqt, pl_rade } = planet;
-    const esi = planet.analysis?.stage1?.esi?.aggregate || 0;
-    let comp = { 'H₂O': 0, 'CO₂': 0, 'CH₄': 0, 'CO': 0, 'K': 0, 'SO₂': 0 };
-
-    if (pl_eqt > 1200) { // Hot Jupiter / Lava World
-        comp['K'] = Math.random() * 40 + 10;
-        comp['CO'] = Math.random() * 20;
-    } else if (esi > 0.8 && pl_eqt > 200 && pl_eqt < 350) { // Earth-like
-        comp['H₂O'] = Math.random() * 40 + 40;
-        comp['CO₂'] = Math.random() * 20 + 5;
-        comp['CH₄'] = Math.random() * 5;
-    } else if (pl_rade < 2.5 && pl_eqt > 400) { // Potential Venus-like
-        comp['CO₂'] = Math.random() * 50 + 45;
-        comp['SO₂'] = Math.random() * 30 + 5;
-        comp['H₂O'] = Math.random() * 5;
-    } else if (pl_rade > 4) { // Gas/Ice Giant
-        if (pl_eqt < 150) { // Cold (Neptune-like)
-            comp['CH₄'] = Math.random() * 60 + 20;
-            comp['H₂O'] = Math.random() * 20;
-        } else { // Warm (Jupiter-like)
-            comp['H₂O'] = Math.random() * 50 + 10;
-            comp['CH₄'] = Math.random() * 10;
-        }
-    } else { // Generic rocky world
-        comp['CO₂'] = Math.random() * 40 + 10;
-        comp['H₂O'] = Math.random() * 20;
-    }
-    return comp;
-}
-
 function renderDrawer(planet) {
     if (!pipelineState.ui.drawer) return;
     if (!planet) {
@@ -2021,13 +1918,6 @@ function renderDrawer(planet) {
     const esiColor = stage1.esi.aggregate >= pipelineState.thresholds.esi ? 'var(--accent-green)' : 'var(--accent-red)';
     const lcColor = stage1.lcScore >= pipelineState.thresholds.lc ? 'var(--accent-green)' : 'var(--accent-red)';
     const phiColor = stage2?.phiLikelihood >= pipelineState.thresholds.phi ? 'var(--accent-green)' : 'var(--accent-red)';
-
-    const planetAtmosphere = generateAtmosphereForPlanet(planet);
-    const atmosphereList = Object.entries(planetAtmosphere)
-        .filter(([, conc]) => conc > 5)
-        .sort(([, a], [, b]) => b - a)
-        .map(([gas, conc]) => `<li><strong>${gas}:</strong> ${Math.round(conc)}%</li>`)
-        .join('');
 
     const formatValue = (value, unit = '', decimals = 2) => value != null ? `${value.toFixed(decimals)} ${unit}`.trim() : 'N/A';
 
@@ -2059,13 +1949,6 @@ function renderDrawer(planet) {
                     <div class="data-item" style="margin-top: 0.5rem; background: rgba(255,255,255,0.05);"><div class="data-item-label">PHI Likelihood <span style="font-weight: 400; font-style: italic;">(Simulated AI Score)</span></div><div class="data-item-value" style="font-size: 1.5rem; color: ${phiColor}">${stage1.passed ? stage2.phiLikelihood.toFixed(3) : '-.--'}</div></div>
                 </div>
             </details>
-            <details open>
-                <summary><h4>Predicted Atmosphere (Simulated)</h4></summary>
-                <div class="collapsible-content">
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">Based on the planet's properties, the AI predicts the following likely atmospheric components:</p>
-                    <ul style="padding-left: 0; list-style: none; margin-top: 1rem; column-count: 2; font-size: 0.85rem;">${atmosphereList || '<li>No significant atmosphere predicted.</li>'}</ul>
-                </div>
-            </details>
              <details>
                 <summary><h4>Data Provenance</h4></summary>
                 <div class="collapsible-content" style="font-size: 0.85rem; line-height: 1.6;">
@@ -2095,30 +1978,13 @@ function renderDiscussion() {
 
     container.style.display = 'block';
 
-    let highlightedPlanet = finalShortlist.length > 0 
-        ? finalShortlist.sort((a,b) => b.analysis.stage2.phiLikelihood - a.analysis.stage2.phiLikelihood)[0]
-        : (stage1Passed.length > 0 ? stage1Passed.sort((a,b) => b.analysis.stage2.phiLikelihood - a.analysis.stage2.phiLikelihood)[0] : null);
-    
     let content = `<h3>Discussion of Results</h3>
-<p>The pipeline demonstrates a powerful, tiered approach to exoplanet analysis, moving from a broad survey to targeted, AI-driven characterization. Here’s a breakdown of the process and data:</p>
+<p>This interactive pipeline simulates a modern, AI-augmented workflow for identifying potentially habitable exoplanets from large survey datasets. The core strategy is to use a multi-stage process that efficiently allocates computational and observational resources.</p>
 <ul>
-    <li><strong>Source Data:</strong> The pipeline begins with <strong>${allData.length} candidates</strong> using real, publicly available data from NASA's <strong>Kepler Space Telescope</strong>. This initial dataset is vast and contains significant noise and non-viable signals.</li>
-    <li><strong>Stage 1 - AI-Powered Filtering:</strong> The first stage acts as an intelligent filter. It uses two criteria: the <strong>Earth Similarity Index (ESI)</strong>, a real metric calculated from physical data, and a <strong>Light Curve Plausibility score</strong>, a simulated AI assessment of the transit signal's quality. This step efficiently reduced the pool to <strong>${stage1Passed.length} promising candidates</strong>.</li>
-    <li><strong>Stage 2 - AI-Powered Prioritization:</strong> The refined list is evaluated by a more sophisticated AI model. This generates a simulated <strong>Planetary Habitability Index (PHI) Likelihood score</strong>, which predicts a planet's potential for detailed atmospheric study.</li>
-    <li><strong>Final Shortlist:</strong> The outcome is a data-driven shortlist of <strong>${finalShortlist.length} targets</strong>. These are not confirmed habitable worlds, but are the highest-priority candidates for allocating precious observation time on instruments like the JWST.</li>
+    <li><strong>From Broad Survey to Sharp Focus:</strong> We began with a dataset of <strong>${allData.length} Kepler candidates</strong>. The Stage 1 filter, combining the physics-based ESI metric with an AI check on signal quality, effectively narrowed this vast pool down to <strong>${stage1Passed.length} higher-quality targets</strong>. This demonstrates the power of using AI for rapid, large-scale data vetting.</li>
+    <li><strong>Prioritizing with Advanced AI:</strong> In Stage 2, a more sophisticated AI model assessed the filtered candidates to produce a PHI-inspired likelihood score. This crucial step prioritizes the most scientifically valuable targets, resulting in a final, manageable shortlist of <strong>${finalShortlist.length} candidates</strong>.</li>
+    <li><strong>An Engine for Discovery:</strong> The final shortlist represents the pipeline's ultimate goal: to provide astronomers with a statistically robust, rank-ordered list of worlds that are most deserving of precious follow-up time with premier observatories like JWST. This data-driven approach ensures that the search for life is both efficient and effective.</li>
 </ul>`;
-
-    if (highlightedPlanet) {
-        content += `<p><strong>Case Study: ${highlightedPlanet.pl_name}</strong></p><ul>`;
-        if (finalShortlist.includes(highlightedPlanet)) {
-            content += `<li>This planet was shortlisted with a high simulated PHI Likelihood of <strong>${highlightedPlanet.analysis.stage2.phiLikelihood.toFixed(2)}</strong>. Its ESI of ${highlightedPlanet.analysis.stage1.esi.aggregate.toFixed(2)} (calculated from real data) indicates significant physical similarity to Earth.</li>`;
-            content += `<li>The AI's high score suggests this world is a prime candidate for a dedicated JWST observation campaign to search for real biosignatures.</li>`;
-        } else {
-             content += `<li>This planet passed Stage 1 with a strong ESI of ${highlightedPlanet.analysis.stage1.esi.aggregate.toFixed(2)} but was ultimately not shortlisted. Its simulated PHI Likelihood of ${highlightedPlanet.analysis.stage2.phiLikelihood.toFixed(2)} fell below the threshold.</li>`;
-             content += `<li>This showcases how the pipeline prioritizes resources, flagging that while promising, other candidates currently represent a higher probability of being habitable based on the model's analysis.</li>`;
-        }
-        content += `</ul>`;
-    }
 
     container.innerHTML = content;
 }

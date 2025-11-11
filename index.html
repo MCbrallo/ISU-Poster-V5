@@ -446,7 +446,7 @@
         }
         
         #transit-info-panel, #spectroscopy-info-panel {
-            width: 550px;
+            width: 600px;
             max-width: 95vw;
             display: flex;
             flex-direction: column;
@@ -894,7 +894,7 @@
             font-weight: 700;
         }
         
-        #objectives-section, #methods-section, #results-section, #conclusions-section, #references-section {
+        #objectives-section, #methods-section, #results-section, #conclusions-section, #references-section, #extra-resources-section {
             position: relative;
             z-index: 10;
             padding: 5rem 2rem;
@@ -913,14 +913,14 @@
              max-width: 1600px;
              margin: 0 auto;
         }
-        #conclusions-section, #references-section {
+        #conclusions-section, #references-section, #extra-resources-section {
              background: radial-gradient(ellipse at 50% 0%, rgba(150, 150, 150, 0.1) 0%, rgba(0,0,0,0) 60%);
              padding-top: 2rem;
              max-width: 1200px;
              margin: 0 auto;
         }
 
-        #objectives-section h2, #methods-section h2, #results-section h2, #conclusions-section h2, #references-section h2 {
+        #objectives-section h2, #methods-section h2, #results-section h2, #conclusions-section h2, #references-section h2, #extra-resources-section h2 {
             font-size: clamp(2.5rem, 6vw, 4rem);
             font-weight: 900;
             margin-bottom: 3rem;
@@ -939,7 +939,7 @@
             color: var(--accent-yellow); 
             text-shadow: 0 0 15px rgba(255, 232, 31, 0.7);
         }
-        #conclusions-section h2, #references-section h2 { 
+        #conclusions-section h2, #references-section h2, #extra-resources-section h2 { 
             color: #f0f0f0; 
             text-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
         }
@@ -1429,6 +1429,27 @@
             color: var(--text-primary);
         }
 
+        .abstract-container {
+            max-width: 900px;
+            margin: 3rem auto 0;
+            padding: 2.5rem;
+        }
+        .abstract-container h3 {
+            font-size: 1.8rem;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 1rem;
+        }
+        .abstract-container p {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 1.2rem;
+        }
+
         /* --- END NEW STYLES --- */
 
         footer {
@@ -1517,7 +1538,7 @@
         #sidebar-link-objectives.active { background-color: var(--accent-red); box-shadow: 0 0 10px var(--accent-red); }
         #sidebar-link-methods.active { background-color: var(--accent-purple); box-shadow: 0 0 10px var(--accent-purple); }
         #sidebar-link-results.active { background-color: var(--accent-yellow); box-shadow: 0 0 10px var(--accent-yellow); }
-        #sidebar-link-conclusions.active, #sidebar-link-references.active { background-color: #f0f0f0; box-shadow: 0 0 10px #f0f0f0; }
+        #sidebar-link-conclusions.active, #sidebar-link-references.active, #sidebar-link-extra-resources.active { background-color: #f0f0f0; box-shadow: 0 0 10px #f0f0f0; }
 
         /* --- Modal Styles --- */
         .modal-overlay {
@@ -1621,7 +1642,7 @@
 
 #sw-crawl{ 
   position: relative; 
-  height: 400vh;
+  height: 700vh;
   background: rgba(0, 0, 0, 0.4); 
   z-index: 10;
 } 
@@ -1723,6 +1744,7 @@
             <li><a id="sidebar-link-results" href="#results-section" data-tooltip="Results and Discussion" aria-label="Go to Results and Discussion section"></a></li>
             <li><a id="sidebar-link-conclusions" href="#conclusions-section" data-tooltip="Conclusions" aria-label="Go to Conclusions section"></a></li>
             <li><a id="sidebar-link-references" href="#references-section" data-tooltip="References" aria-label="Go to References section"></a></li>
+            <li><a id="sidebar-link-extra-resources" href="#extra-resources-section" data-tooltip="Extra Resources" aria-label="Go to Extra Resources section"></a></li>
         </ul>
     </nav>
 
@@ -1761,13 +1783,15 @@
               <div class="sw-crawl__text" role="doc-introduction" aria-describedby="sw-crawl-desc">
                 <p id="sw-crawl-desc" class="visually-hidden">Scroll to read the introduction. Text is tilted with perspective and moves upward as you scroll. A reduced-motion mode shows it flat.</p>
         
-                <p>A long time ago, in a galaxy far, far away, the search for habitable worlds began. Today, that search is driven by the vast datasets collected by missions such as Kepler.</p>
+                <p>A long time ago, in a galaxy far far away the search for habitable worlds began...</p>
 
-                <p>Yet, most Kepler planets are too faint to study their Planet Habitability Index (PHI) properties directly and answer, “Could life survive here?”</p>
+                <p>Today this search is powered by mountains of data from missions like Kepler.</p>
 
-                <p>JWST, however, excels at PHI-relevant spectroscopy. By combining JWST’s detailed atmospheric insights with Kepler’s catalog, AI offers a path to powerful, low-cost PHI analysis.</p>
+                <p>Yet, most Kepler planets are too faint to study their Planetary Habitability Index (PHI) characteristics directly, and ask, “Could life live here?”</p>
         
-                <p>The challenge is that these datasets are managed by separate teams. Building cross-mission links could dramatically expand JWST’s impact, extending PHI assessments to far more worlds.</p>
+                <p>However, JWST excels at PHI spectroscopy. By linking JWST’s insights with Kepler’s vast catalog, AI could unlock advanced, low-cost PHI research.</p>
+
+                <p>The challenge? This data belongs to individual teams, but cross-mission links could extend JWST’s reach to many more worlds.</p>
 
                 <p>This project marks the next step in exoplanet research, moving from AI-based detection to large-scale PHI analysis.</p>
               </div>
@@ -1941,8 +1965,22 @@
             </ol>
         </section>
 
+        <section id="extra-resources-section">
+            <h2>Extra Resources</h2>
+            <div class="glass-panel abstract-container">
+                <h3>Full Abstract</h3>
+                <p>The search for habitable worlds beyond our Solar System has evolved rapidly, driven by the legacy of the Kepler Space Telescope in 2009. Even after retirement in 2018, Kepler’s dataset continues to inspire methodologies in exoplanet detection, classification, and validation through artificial intelligence (AI) and cross-mission collaboration.</p>
+                <p>Yet, most Kepler planets remain too faint and distant for direct habitability characterization, constrained by signal-to-noise limits and orbital geometry. This can be addressed through the combined use of James Webb Space Telescope (JWST) data and AI-driven analysis.</p>
+                <p>Research has begun exploring correlations between Kepler’s photometric data and atmospheric properties by comparing light-curve features with simulated refraction patterns. This line of inquiry demonstrates that Kepler’s archive can serve as the foundation for habitability inference when enhanced by JWST observations.</p>
+                <p>A challenge is that the intellectual property (IP) rights of JWST biosignature images typically remain with individual principal investigators, making large-scale AI training datasets difficult to assemble. Nonetheless, shared access would yield an invaluable resource for exoplanet science.</p>
+                <p>AI capabilities open the door to integrating datasets from different space observatories, allowing models to bridge missions and accelerate the detection of potentially habitable exoplanets. The integration of scientific domain knowledge into deep-learning classifiers proved that hybrid astrophysical–neural models outperform purely data-driven systems.</p>
+                <p>This project proposes an interactive platform that unites recent advances in AI and astrophysical modelling while recommending integration of spectral and physical parameters with a two step process utilizing the Earth Similarity Index (ESI) and Planet Habitability Index (PHI).</p>
+                <p>Very recently, the first cross-mission analysis between Kepler and JWST focused on Kepler-167e Jupiter-like exoplanet, demonstrating that Kepler’s archival photometric data can be directly integrated with infrared observations.</p>
+                <p>This project aims to reflect a logical progression: from AI-powered detection to detailed habitability study, establishing a framework for comparing distant worlds with our own.</p>
+            </div>
+        </section>
+
         <footer class="print-section">
-            <button id="print-button" class="no-print">Print / Save PDF</button>
         </footer>
     </div>
 
@@ -1988,7 +2026,7 @@
   const stage = section.querySelector('.sw-crawl__stage');
   const skipBtn = section.querySelector('.sw-crawl__skip');
   const fullAbstractBtn = document.getElementById('full-abstract-btn');
-  const conclusionsSection = document.getElementById('conclusions-section');
+  const extraResourcesSection = document.getElementById('extra-resources-section');
 
   function update(){
     const viewportH = window.innerHeight;
@@ -2012,9 +2050,9 @@
     });
   }
   
-  if (fullAbstractBtn && conclusionsSection) {
+  if (fullAbstractBtn && extraResourcesSection) {
     fullAbstractBtn.addEventListener('click', () => {
-        conclusionsSection.scrollIntoView({ behavior: 'smooth' });
+        extraResourcesSection.scrollIntoView({ behavior: 'smooth' });
     });
   }
 })();
