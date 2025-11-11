@@ -1,3 +1,4 @@
+
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -35,6 +36,7 @@ let liveTransitDepth = 1.0;
 let isKeplerInHold = false;
 let isJwstInHold = false;
 let isMethodsSectionVisible = false;
+let cameraLookAtTarget = new THREE.Vector3(0, 0, 0);
 
 // --- NEW ORBITAL SYSTEM CONSTANTS ---
 const SCIENTIFIC_MIN_AU = 0.2;
@@ -110,10 +112,52 @@ document.addEventListener('DOMContentLoaded', () => {
     initMethodsAnimations();
     initPipeline();
     initSidebarScrollspy();
+    initFullscreenButton();
     
     window.addEventListener('scroll', handleMainScroll);
     handleMainScroll(); // Initial call to set states
 });
+
+function initFullscreenButton() {
+    const container = document.getElementById('fullscreen-container');
+    const btn = document.getElementById('fullscreen-btn');
+    const iconExpand = document.getElementById('icon-expand');
+    const iconCompress = document.getElementById('icon-compress');
+    
+    if (!btn || !document.documentElement.requestFullscreen) {
+        if(container) container.style.display = 'none';
+        return; // Fullscreen API not supported
+    }
+
+    function updateIcon() {
+        if (document.fullscreenElement) {
+            iconExpand.style.display = 'none';
+            iconCompress.style.display = 'block';
+            btn.setAttribute('aria-label', 'Exit fullscreen');
+            btn.setAttribute('title', 'Exit fullscreen');
+        } else {
+            iconExpand.style.display = 'block';
+            iconCompress.style.display = 'none';
+            btn.setAttribute('aria-label', 'Enter fullscreen');
+            btn.setAttribute('title', 'Enter fullscreen');
+        }
+    }
+
+    btn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+            });
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    });
+
+    document.addEventListener('fullscreenchange', updateIcon);
+    updateIcon(); // Initial state
+}
 
 function updateStarBrightness() {
     if (!bloomPass) return;
@@ -173,6 +217,11 @@ function handleMainScroll() {
     const headerTitle = document.getElementById('header-title');
     if (headerTitle) {
          headerTitle.classList.toggle('hidden', scrollY < crawlSection.offsetTop + crawlSection.offsetHeight);
+    }
+    
+    const fullscreenPrompt = document.getElementById('fullscreen-prompt');
+    if (fullscreenPrompt) {
+        fullscreenPrompt.classList.toggle('hidden', scrollY > 150);
     }
     
     const easeInOutSine = (t) => (1 - Math.cos(t * Math.PI)) / 2;
@@ -301,9 +350,10 @@ function handleMainScroll() {
         }
     }
 
-
     const startZ = 200, closeZ = 45, finalZ = 150;
-    const startX = 0, closeX = -25, finalX = 0;
+    const startX = 0, closeX = -30, finalX = 0; // Camera X position
+    const startLookAtX = 0, closeLookAtX = -30, finalLookAtX = 0; // Target X position
+
     const keplerProgress = (scrollY - keplerAnimStart) / (keplerSectionHeight - vh);
     
     const { CAM_ZOOM_IN_START, CAM_ZOOM_IN_END, CAM_HOLD_END, CAM_ZOOM_OUT_END } = {
@@ -313,32 +363,40 @@ function handleMainScroll() {
     if (scrollY < keplerAnimStart) {
         camera.position.z = startZ;
         camera.position.x = startX;
+        cameraLookAtTarget.x = startLookAtX;
     } else if (scrollY < keplerAnimEnd) {
         let progress = Math.max(0, keplerProgress);
-        let newZ, newX;
+        let newZ, newX, newLookAtX;
         if (progress < CAM_ZOOM_IN_START) {
             newZ = startZ;
             newX = startX;
+            newLookAtX = startLookAtX;
         } else if (progress <= CAM_ZOOM_IN_END) {
             const p = (progress - CAM_ZOOM_IN_START) / (CAM_ZOOM_IN_END - CAM_ZOOM_IN_START);
             newZ = startZ + (closeZ - startZ) * easeInOutSine(p);
             newX = startX + (closeX - startX) * easeInOutSine(p);
+            newLookAtX = startLookAtX + (closeLookAtX - startLookAtX) * easeInOutSine(p);
         } else if (progress <= CAM_HOLD_END) {
             newZ = closeZ;
             newX = closeX;
+            newLookAtX = closeLookAtX;
         } else if (progress <= CAM_ZOOM_OUT_END) {
             const p = (progress - CAM_HOLD_END) / (CAM_ZOOM_OUT_END - CAM_HOLD_END);
             newZ = closeZ + (finalZ - closeZ) * easeInOutSine(p);
             newX = closeX + (finalX - closeX) * easeInOutSine(p);
+            newLookAtX = closeLookAtX + (finalLookAtX - closeLookAtX) * easeInOutSine(p);
         } else {
             newZ = finalZ;
             newX = finalX;
+            newLookAtX = finalLookAtX;
         }
         camera.position.z = newZ;
         camera.position.x = newX;
+        cameraLookAtTarget.x = newLookAtX;
     } else {
         camera.position.z = finalZ;
         camera.position.x = finalX;
+        cameraLookAtTarget.x = finalLookAtX;
     }
 
     const controlsEnableScroll = jwstSection.offsetTop + jwstSection.offsetHeight * 0.8;
@@ -1131,6 +1189,10 @@ function initThreeScene() {
         requestAnimationFrame(animate);
         const elapsedTime = clock.getElapsedTime();
 
+        if (!controls.enabled) {
+            camera.lookAt(cameraLookAtTarget);
+        }
+
         if (keplerModel.scene && keplerModel.scene.visible) {
             keplerModel.scene.lookAt(0, 0, 0);
         }
@@ -1156,9 +1218,20 @@ function initThreeScene() {
         const angularSpeed = derivedPlanetData.orbitalPeriodDays > 0 ? (2 * Math.PI) / derivedPlanetData.orbitalPeriodDays : 0;
         const animationSpeedMultiplier = interactiveSystemState.planet.animationSpeed || 1.0;
         const orbitAngle = elapsedTime * angularSpeed * ANIMATION_TIME_SCALE * animationSpeedMultiplier;
+
+        // Add a small phase lag to delay the dip on the graph relative to the visual transit
+        const transitAngle = orbitAngle - 0.25;
+
         const visualOrbitRadius = mapScientificToVisualOrbit();
+        
+        // Calculate visual position
         planetMesh.position.x = Math.cos(orbitAngle) * visualOrbitRadius;
         planetMesh.position.z = Math.sin(orbitAngle) * visualOrbitRadius;
+
+        // Calculate position for transit graph based on the lagged angle
+        const transit_x = Math.cos(transitAngle) * visualOrbitRadius;
+        const transit_z = Math.sin(transitAngle) * visualOrbitRadius;
+
 
         const starData = starTypes[interactiveSystemState.star.type];
         
@@ -1176,13 +1249,24 @@ function initThreeScene() {
         let fluxDip = 0;
         const starR_visual = starData.visualRadius;
         const planetR_visual = planetMesh.geometry.parameters.radius * planetMesh.scale.x;
-        const d_visual = Math.abs(planetMesh.position.x);
-        if (planetMesh.position.z > 0 && d_visual < starR_visual + planetR_visual) {
+        const d_visual = Math.abs(transit_x);
+
+        // A transit occurs when the planet is between the star (z=0) and the camera (z>0)
+        // and there is horizontal overlap.
+        if (transit_z > 0 && d_visual < starR_visual + planetR_visual) {
+            // Full transit (planet is completely within the star's disk)
             if (d_visual <= starR_visual - planetR_visual) {
                 fluxDip = finalDip;
-            } else {
-                const overlapDistance = (starR_visual + planetR_visual) - d_visual;
-                fluxDip = finalDip * Math.min(1.0, (overlapDistance / (2 * Math.min(starR_visual, planetR_visual))) * 2.0);
+            } 
+            // Partial transit (ingress/egress)
+            else {
+                const ingress_egress_width = 2 * planetR_visual;
+                if (ingress_egress_width > 0) {
+                    const transit_progress = ((starR_visual + planetR_visual) - d_visual) / ingress_egress_width;
+                    fluxDip = finalDip * Math.max(0, Math.min(1.0, transit_progress));
+                } else {
+                    fluxDip = finalDip; // If planet is a point, it's an instant transit
+                }
             }
         }
         liveTransitDepth = 1.0 - fluxDip + (Math.random() - 0.5) * 0.0009;
@@ -1433,6 +1517,46 @@ const pipelineState = {
     ui: {},
 };
 
+const infoModalContent = {
+    'esi': {
+        title: 'Earth Similarity Index (ESI)',
+        content: `
+            <p>Each planetary property (e.g., radius, density, escape velocity, temperature) is compared to Earth's using this weighted similarity formula. Scores range from 0 (no similarity) to 1 (Earth-like). Individual ESI values are combined using the geometric mean to give the final ESI.</p>
+            <div class="modal-formula-container">
+                 <div class="styled-formula">ESI<span class="sub">x</span> = (1 - |(x - x<span class="sub">0</span>) / (x + x<span class="sub">0</span>)|)<span class="sup">w</span></div>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 1rem;">Where <strong>x</strong> is the planet's property, <strong>x₀</strong> is Earth's reference value, and <strong>w</strong> is a weight exponent.</p>
+        `
+    },
+    'phi': {
+        title: 'Planetary Habitability Index (PHI)',
+        content: `
+            <p>PHI represents the geometric mean of four habitability factors. Together, these describe the physical and chemical conditions that could support life, independent of Earth-likeness.</p>
+            <div class="modal-formula-container">
+                 <div class="styled-formula">PHI = (S · E · C · L)<span class="sup">1/4</span></div>
+            </div>
+            <ul style="color: var(--text-secondary); line-height: 1.8;">
+                <li><strong>S:</strong> stable substrate</li>
+                <li><strong>E:</strong> available energy</li>
+                <li><strong>C:</strong> appropriate chemistry</li>
+                <li><strong>L:</strong> liquid solvent presence</li>
+            </ul>
+        `
+    },
+    'lc': {
+        title: 'Light Curve (LC) Score',
+        content: `
+            <p>The Light Curve (LC) Score is a value from 0 to 1 generated by an AI model, specifically a <strong>Convolutional Neural Network (CNN)</strong>.</p>
+            <p>The AI is trained to analyze the shape of the transit dip in a star's brightness data. It learns to recognize the characteristic pattern of a planet passing in front of its star.</p>
+            <ul style="color: var(--text-secondary); line-height: 1.8;">
+                <li>A <strong>high score (near 1)</strong> indicates the signal is clean, well-defined, and has a high probability of being a true planetary transit.</li>
+                <li>A <strong>low score (near 0)</strong> suggests the signal might be caused by stellar activity (like starspots), instrument errors, or other non-planetary phenomena.</li>
+            </ul>
+            <p>This automated score is crucial for efficiently filtering out thousands of false positives from large datasets like Kepler's.</p>
+        `
+    }
+};
+
 function initPipeline() {
     const container = document.getElementById('pipeline-container');
     if (!container) return;
@@ -1456,15 +1580,15 @@ function renderPipelineLayout(container) {
         <div class="pipeline-controls glass-panel glass-panel-yellow">
             <div id="offline-banner" style="display: none;">Offline snapshot (Aug 2024)</div>
             <div class="control-group">
-                <label for="esi-threshold">ESI Threshold</label>
+                <label for="esi-threshold">ESI Threshold<button class="info-button" data-info="esi" aria-label="More information about ESI">ⓘ</button></label>
                 <input type="number" id="esi-threshold" value="0.80" step="0.05" min="0" max="1">
             </div>
             <div class="control-group">
-                <label for="lc-threshold">LC Score Threshold</label>
+                <label for="lc-threshold">LC Score Threshold<button class="info-button" data-info="lc" aria-label="More information about Light Curve Score">ⓘ</button></label>
                 <input type="number" id="lc-threshold" value="0.50" step="0.05" min="0" max="1">
             </div>
             <div class="control-group">
-                <label for="phi-threshold">PHI Likelihood Threshold</label>
+                <label for="phi-threshold">PHI Likelihood<button class="info-button" data-info="phi" aria-label="More information about PHI">ⓘ</button></label>
                 <input type="number" id="phi-threshold" value="0.60" step="0.05" min="0" max="1">
             </div>
         </div>
@@ -1507,9 +1631,9 @@ const modalContent = {
         content: `
             <p>We start with a huge list of potential planets from the public Kepler mission data.</p>
             <h4>1. Physics-Based Filter (ESI):</h4>
-            <p>We calculate the <strong>Earth Similarity Index (ESI)</strong>. It's a quick check (from 0 to 1) to see if a planet has a similar size and receives a similar amount of energy from its star as Earth does. We only keep planets with an ESI score of <strong>${pipelineState.thresholds.esi} or higher</strong>.</p>
+            <p>We calculate the <strong>Earth Similarity Index (ESI)</strong>. It's a quick check (from 0 to 1) to see if a planet has a similar size and receives a similar amount of energy from its star as Earth does. We only keep planets with an ESI score of <strong>\${esi} or higher</strong>.</p>
             <h4>2. AI Signal Check (Light Curve CNN):</h4>
-            <p>Next, an AI model (a Convolutional Neural Network) looks at the "light curve" - the data showing the star's brightness dipping as the planet passes in front. The AI gives a score (from 0 to 1) on how "clean" and plausible this dip looks, filtering out noisy or fake signals. We require a score of <strong>${pipelineState.thresholds.lc} or higher</strong>.</p>
+            <p>Next, an AI model (a Convolutional Neural Network) looks at the "light curve" - the data showing the star's brightness dipping as the planet passes in front. The AI gives a score (from 0 to 1) on how "clean" and plausible this dip looks, filtering out noisy or fake signals. We require a score of <strong>\${lc} or higher</strong>.</p>
         `
     },
     '2': {
@@ -1518,8 +1642,8 @@ const modalContent = {
             <p>This is a critical decision point. A candidate planet must satisfy <strong>both</strong> criteria from Stage 1 to proceed.
             </p>
             <ul>
-                <li>Is it Earth-like based on physics? (<code>ESI ≥ ${pipelineState.thresholds.esi}</code>)</li>
-                <li>Does its transit signal look real to an AI? (<code>Light Curve Score ≥ ${pipelineState.thresholds.lc}</code>)</li>
+                <li>Is it Earth-like based on physics? (<code>ESI ≥ \${esi}</code>)</li>
+                <li>Does its transit signal look real to an AI? (<code>Light Curve Score ≥ \${lc}</code>)</li>
             </ul>
             <p>If the answer to both questions is "yes," the candidate passes to the next stage. If not, it is filtered out. This dual-check approach efficiently removes the vast majority of non-viable candidates, saving valuable time and resources.</p>
         `
@@ -1538,7 +1662,7 @@ const modalContent = {
         title: 'Final Shortlist',
         content: `
             <p>This is the final output of our pipeline: a highly-vetted, prioritized list of the most promising worlds for follow-up investigation.</p>
-            <p>To make this list, a candidate must have a PHI Likelihood score of <strong>${pipelineState.thresholds.phi} or higher</strong>.</p>
+            <p>To make this list, a candidate must have a PHI Likelihood score of <strong>\${phi} or higher</strong>.</p>
             <p>These planets are not confirmed to be habitable, but they represent the "best of the best" candidates found by our AI. They are the top priorities for scientists who want to use powerful telescopes like JWST to search for definitive signs of life beyond Earth.</p>
         `
     }
@@ -1554,40 +1678,77 @@ function addEventListeners() {
         renderTable();
     });
 
-    const modal = document.getElementById('method-modal');
+    const methodModal = document.getElementById('method-modal');
     const modalTitle = document.getElementById('modal-title');
     const modalBody = document.getElementById('modal-body');
-    const closeBtn = document.getElementById('modal-close-btn');
+    const methodModalCloseBtn = methodModal.querySelector('.modal-close');
 
-    const showModal = (stepId) => {
+    const showMethodModal = (stepId) => {
         const content = modalContent[stepId];
         if (content) {
             modalTitle.textContent = content.title;
             modalBody.innerHTML = content.content.replace(/\${(.*?)}/g, (match, key) => pipelineState.thresholds[key]);
-            modal.classList.add('visible');
-            closeBtn.focus();
+            methodModal.classList.add('visible');
+            if (methodModalCloseBtn) {
+                methodModalCloseBtn.focus();
+            }
         }
     };
-    const hideModal = () => {
-        modal.classList.remove('visible');
+    const hideMethodModal = () => {
+        methodModal.classList.remove('visible');
     };
     
     document.querySelectorAll('.flow-step').forEach(step => {
-        step.addEventListener('click', () => showModal(step.dataset.step));
+        step.addEventListener('click', () => showMethodModal(step.dataset.step));
         step.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                showModal(step.dataset.step);
+                showMethodModal(step.dataset.step);
             }
         });
     });
 
-    closeBtn.addEventListener('click', hideModal);
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) hideModal();
+    if (methodModalCloseBtn) {
+        methodModalCloseBtn.addEventListener('click', hideMethodModal);
+    }
+    methodModal.addEventListener('click', (e) => {
+        if (e.target === methodModal) hideMethodModal();
     });
+    
+    // New Info Modal Logic
+    const infoModal = document.getElementById('info-modal');
+    const infoModalTitle = document.getElementById('info-modal-title');
+    const infoModalBody = document.getElementById('info-modal-body');
+    const infoModalCloseBtns = infoModal.querySelectorAll('.modal-close');
+
+    const showInfoModal = (infoId) => {
+        const content = infoModalContent[infoId];
+        if (content) {
+            infoModalTitle.textContent = content.title;
+            infoModalBody.innerHTML = content.content;
+            infoModal.classList.add('visible');
+            infoModalCloseBtns[0].focus();
+        }
+    };
+    const hideInfoModal = () => {
+        infoModal.classList.remove('visible');
+    };
+
+    document.getElementById('pipeline-container').addEventListener('click', (e) => {
+        if (e.target.matches('.info-button')) {
+            showInfoModal(e.target.dataset.info);
+        }
+    });
+    infoModalCloseBtns.forEach(btn => btn.addEventListener('click', hideInfoModal));
+    infoModal.addEventListener('click', (e) => {
+        if (e.target === infoModal) hideInfoModal();
+    });
+
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('visible')) hideModal();
+        if (e.key === 'Escape') {
+            if (methodModal.classList.contains('visible')) hideMethodModal();
+            if (infoModal.classList.contains('visible')) hideInfoModal();
+        }
     });
 }
 
