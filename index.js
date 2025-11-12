@@ -1612,8 +1612,9 @@ function renderPipelineLayout(container) {
         <div class="limitations-container glass-panel glass-panel-yellow">
             <h3>Limitations & Considerations</h3>
             <ul class="limitations-list">
-                <li><strong>Data & Observational Constraints:</strong> The pipeline's effectiveness is fundamentally tied to data quality and availability. JWST observation time is a scarce resource, meaning most candidates lack the high-resolution atmospheric spectra needed for definitive PHI analysis. ESI, while a useful initial filter, is a coarse metric based on bulk properties and cannot confirm habitability alone.</li>
-                <li><strong>AI Model & Interpretation:</strong> The models used here are simplified demonstrations for educational purposes. Real-world AI involves far greater complexity. Crucially, all AI-generated scores are <strong>probabilistic</strong>, not deterministic. A high likelihood score identifies a statistically promising target for further study; it is not a direct confirmation of habitability.</li>
+                <li><strong>Data & Observational Constraints:</strong> Access to JWST observation time remains a major barrier to constructing an open-access atmospheric database of Kepler planets suitable for large-scale AI training. The proprietary nature of JWST data and limited scheduling opportunities restrict the ability to create a training database for cross-mission analysis.</li>
+                <li><strong>AI Model & Interpretation:</strong> The AI-derived results represent atmospheric inferences rather than direct measurements. While these models can identify trends and predict likely atmospheric properties to compute PHI, they do not replace spectroscopic confirmation. Promising candidates identified by the AI would still require targeted follow-up direct observations for verification and further study.</li>
+                <li><strong>Instrument Limitations:</strong> A complete habitability assessment remains fundamentally limited by current observational capabilities. Without direct planetary exploration, habitability metrics must rely on indirect evidence, such as spectral signatures, orbital dynamics, and energy balance, interpreted through the lens of our existing instruments.</li>
                 <li><strong>The Search is a Marathon:</strong> This framework is a tool for prioritization, not a finish line. Each shortlisted candidate requires extensive, multi-faceted follow-up observations to move from "potential candidate" to "confirmed habitable world".</li>
             </ul>
         </div>
@@ -1651,11 +1652,11 @@ const modalContent = {
     '3': {
         title: 'Stage 2: Targeted Refinement',
         content: `
-            <p>Candidates that pass Stage 1 receive a more detailed evaluation.</p>
-            <h4>(1) Spectral Analysis (JWST, when available):</h4>
-            <p>When JWST transmission spectra exist for a target, a CNN analyses the spectrum to detect molecular absorption features. These atmospheric signals provide direct insight into composition and help distinguish planets with promising environments from those unlikely to support life.</p>
-            <h4>(2) Habitability Likelihood (PHI-inspired MLP):</h4>
-            <p>A multi-layer perceptron (MLP) then combines all available information — Kepler catalogue data, ESI score, spectral features (if available) — to produce a PHI-inspired habitability likelihood. This score expresses how strongly the combined evidence supports conditions compatible with life and helps prioritize targets for future atmospheric or biosignature follow-up.</p>
+            <p>Candidates that pass Stage 1 are analyzed by advanced AI models that have been pre-trained on verified JWST atmospheric data.</p>
+            <h4>(1) Inferred Spectral Analysis (CNN):</h4>
+            <p>Instead of requiring new JWST data for every planet, a Convolutional Neural Network (CNN) uses the planet's Kepler data to <strong>predict its likely atmospheric transmission spectrum</strong>. The CNN learned how to do this by studying many real JWST spectra.</p>
+            <h4>(2) Habitability Likelihood (MLP):</h4>
+            <p>A second model, a Multi-Layer Perceptron (MLP), takes this inferred spectrum, the Kepler data, and the ESI score to calculate a final <strong>PHI-inspired habitability likelihood</strong>. This score predicts how promising the planet would be if it were to be observed by JWST, allowing scientists to prioritize their targets.</p>
         `
     },
     '4': {
@@ -2168,10 +2169,10 @@ function renderDiscussion() {
     container.style.display = 'block';
 
     let content = `<h3>Discussion of Results</h3>
-<p>This interactive pipeline simulates a modern, AI-augmented workflow for identifying potentially habitable exoplanets from large survey datasets. The core strategy is to use a multi-stage process that efficiently allocates computational and observational resources.</p>
+<p>This interactive pipeline illustrates a modern, AI-augmented workflow for identifying potentially habitable exoplanets from large survey datasets. The core strategy is to use a multi-stage process that efficiently allocates computational and observational resources.</p>
 <ul>
     <li><strong>From Broad Survey to Sharp Focus:</strong> We began with a dataset of <strong>${allData.length} Kepler candidates</strong>. The Stage 1 filter, combining the physics-based ESI metric with an AI check on signal quality, effectively narrowed this vast pool down to <strong>${stage1Passed.length} higher-quality targets</strong>. This demonstrates the power of using AI for rapid, large-scale data vetting.</li>
-    <li><strong>Prioritizing with Advanced AI:</strong> In Stage 2, a more sophisticated AI model assessed the filtered candidates to produce a PHI-inspired likelihood score. This crucial step prioritizes the most scientifically valuable targets, resulting in a final, manageable shortlist of <strong>${finalShortlist.length} candidates</strong>.</li>
+    <li><strong>Prioritizing with Advanced AI:</strong> In Stage 2, a more sophisticated AI model, pre-trained on existing JWST data, inferred the atmospheric properties of the filtered candidates to produce a PHI-inspired likelihood score. This crucial step prioritizes the most scientifically valuable targets, resulting in a final, manageable shortlist of <strong>${finalShortlist.length} candidates</strong>.</li>
     <li><strong>An Engine for Discovery:</strong> The final shortlist represents the pipeline's ultimate goal: to provide astronomers with a statistically robust, rank-ordered list of worlds that are most deserving of precious follow-up time with premier observatories like JWST. This data-driven approach ensures that the search for life is both efficient and effective.</li>
 </ul>`;
 
