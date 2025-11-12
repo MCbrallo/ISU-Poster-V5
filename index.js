@@ -1,4 +1,3 @@
-
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -691,8 +690,8 @@ function initializeInteractiveTransitPanel() {
     updateSystemParameters();
 }
 
-function calculateAtmosphericSimilarity() {
-    const concs = atmosphereState.concentrations;
+function calculateAtmosphericSimilarity(composition) {
+    const concs = composition;
 
     const scoreComponent = (conc, ideal, tolerance) => {
         return Math.exp(-Math.pow(conc - ideal, 2) / (2 * Math.pow(tolerance, 2)));
@@ -737,7 +736,7 @@ function calculateAtmosphericSimilarity() {
 
 
 function updatePhiMeter() {
-    const score = calculateAtmosphericSimilarity();
+    const score = calculateAtmosphericSimilarity(atmosphereState.concentrations);
     const indicator = document.getElementById('phi-meter-indicator');
     const valueDisplay = document.getElementById('phi-value-display');
 
@@ -1072,7 +1071,7 @@ function loadKeplerModel() {
     };
 
     loader.load(
-        'https://storage.googleapis.com/aistudio-o-demos-public/kepler.glb',
+        'assets/kepler.glb',
         (gltf) => { // onSuccess
             console.log("Successfully loaded custom Kepler model from CDN.");
             onModelLoad(gltf.scene);
@@ -1233,7 +1232,7 @@ function loadJWSTModel() {
     };
 
     loader.load(
-        'https://storage.googleapis.com/aistudio-o-demos-public/jwst_model.glb', 
+        'assets/jwst_model.glb', 
         (gltf) => {
             console.log("Successfully loaded custom JWST model.");
             onModelLoad(gltf.scene);
@@ -2019,14 +2018,51 @@ async function runStage1(planet) {
     return { esi, lcScore, passed };
 }
 
-async function runStage2(planet) {
-    // Determine JWST data availability deterministically
+function predictAtmosphereAndSimilarity(planet) {
+    reseed(hashCode(planet.pl_name));
+    
     const isIdealCandidate = planet.pl_name === 'KIC-8462852 b' || planet.pl_name === 'KOI-701.03';
-    let hasJwstData = isIdealCandidate || (seededRandom() > 0.9); // ~10% of others have data
-    const specScore = await runSpecCNN(planet, hasJwstData);
-    const phiLikelihood = await runPhiMLP(planet, specScore);
+    let predictedComposition;
+
+    if (isIdealCandidate) {
+        // Give ideal candidates a very Earth-like atmosphere
+        predictedComposition = {
+            'H₂O': 1.0 + (seededRandom() - 0.5) * 0.5,
+            'O₂':  21 + (seededRandom() - 0.5) * 4,
+            'CO₂': 0.04 + (seededRandom() - 0.5) * 0.02,
+            'CH₄': 0.01 + (seededRandom() - 0.5) * 0.01,
+            'O₃':  0.01 + (seededRandom() - 0.5) * 0.01,
+            'SO₂': seededRandom() * 0.001,
+            'NH₃': seededRandom() * 0.001,
+            'CO':  seededRandom() * 0.001,
+        };
+    } else {
+        // Generate a random atmosphere for other planets
+        predictedComposition = {
+            'H₂O': seededRandom() * 10,
+            'O₂':  seededRandom() * 25,
+            'CO₂': seededRandom(),
+            'CH₄': seededRandom() * 0.1,
+            'O₃':  seededRandom() * 0.1,
+            'SO₂': seededRandom() * 0.1,
+            'NH₃': seededRandom() * 0.1,
+            'CO':  seededRandom() * 0.1,
+        };
+    }
+
+    return calculateAtmosphericSimilarity(predictedComposition);
+}
+
+
+async function runStage2(planet) {
+    // Stage 2 now calculates a predicted atmosphere similarity instead of checking for JWST data
+    const earthSimilarity = predictAtmosphereAndSimilarity(planet);
+    
+    // The PHI likelihood can be influenced by this new similarity score
+    const phiLikelihood = await runPhiMLP(planet, earthSimilarity);
+    
     const passed = phiLikelihood >= pipelineState.thresholds.phi;
-    return { specScore, phiLikelihood, passed, hasJwstData };
+    return { earthSimilarity, phiLikelihood, passed };
 }
 
 function calculateESI(radius, flux) {
@@ -2090,28 +2126,15 @@ async function runLcCNN(planet) {
     return score;
 }
 
-async function runSpecCNN(planet, hasJwstData) {
-    if (!pipelineState.models.spec_cnn || !hasJwstData) return 0.0;
+async function runPhiMLP(planet, earthSimilarity) {
+    if (!pipelineState.models.phi_mlp) return 0.0;
     const isIdealCandidate = planet.pl_name === 'KIC-8462852 b' || planet.pl_name === 'KOI-701.03';
 
-    if (isIdealCandidate) {
-        return 0.85 + seededRandom() * 0.1; // High spectral quality
-    }
+    // PHI Likelihood is now a combination of its original calculation and the new similarity score
+    const baseLikelihood = isIdealCandidate ? (0.90 + seededRandom() * 0.05) : (0.2 + seededRandom() * 0.38);
     
-    return 0.1 + seededRandom() * 0.6; // Moderate score for others with data
-}
-
-async function runPhiMLP(planet, specScore) {
-     if (!pipelineState.models.phi_mlp) return 0.0;
-     const isIdealCandidate = planet.pl_name === 'KIC-8462852 b' || planet.pl_name === 'KOI-701.03';
-
-     if (isIdealCandidate) {
-        return 0.90 + seededRandom() * 0.05; // Very high likelihood
-    }
-
-    // For other candidates that passed Stage 1, ensure they fail Stage 2
-    // Generate a score below the 0.60 threshold
-    return 0.2 + seededRandom() * 0.38; // Score will be between 0.2 and 0.58
+    // Blend the base likelihood with the earth similarity for a more cohesive result
+    return baseLikelihood * 0.6 + earthSimilarity * 0.4;
 }
 
 
@@ -2260,6 +2283,13 @@ function renderDrawer(planet) {
     const esiColor = stage1.esi.aggregate >= pipelineState.thresholds.esi ? 'var(--accent-green)' : 'var(--accent-red)';
     const lcColor = stage1.lcScore >= pipelineState.thresholds.lc ? 'var(--accent-green)' : 'var(--accent-red)';
     const phiColor = stage2?.phiLikelihood >= pipelineState.thresholds.phi ? 'var(--accent-green)' : 'var(--accent-red)';
+    
+    let similarityColor = 'var(--accent-red)';
+    if (stage2?.earthSimilarity > 0.75) {
+        similarityColor = 'var(--accent-green)';
+    } else if (stage2?.earthSimilarity > 0.4) {
+        similarityColor = 'var(--accent-yellow)';
+    }
 
     const formatValue = (value, unit = '', decimals = 2) => value != null ? `${value.toFixed(decimals)} ${unit}`.trim() : 'N/A';
 
@@ -2299,8 +2329,8 @@ function renderDrawer(planet) {
                 <div class="collapsible-content">
                     ${stage2.status === 'Not Run' ? `<p style="text-align: center; color: var(--text-secondary);">Did not pass Stage 1.</p>` : `
                     <div class="output-box" style="margin-top: 0;">
-                        <div class="label">JWST Data Available</div>
-                        <div class="value" style="font-size: 1.8rem; color: ${stage2.hasJwstData ? 'var(--accent-green)' : 'var(--text-secondary)'};">${stage2.hasJwstData ? 'Yes' : 'No (Inferred)'}</div>
+                        <div class="label">Predicted Earth Similarity</div>
+                        <div class="value" style="color: ${similarityColor};">${formatValue(stage2.earthSimilarity)}</div>
                     </div>
                     <div class="output-box">
                         <div class="label">PHI Likelihood</div>
