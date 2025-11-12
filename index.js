@@ -1,5 +1,4 @@
 
-
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -79,7 +78,6 @@ let interactiveSystemState = JSON.parse(JSON.stringify(initialSystemData));
 
 // --- NEW ATMOSPHERE STATE (ABSORPTION SPECTRUM) ---
 const ABSORPTION_FEATURES = {
-    'K':   { color: 'rgba(85, 85, 136, 0.4)', fullName: 'Potassium', features: [[0.77, 0.01, 0.7]], label: ['Potassium', 'K'] },
     'O₂':  { color: 'rgba(102, 153, 153, 0.4)', fullName: 'Oxygen', features: [[1.27, 0.02, 0.8]], label: ['Oxygen', 'O₂'] },
     'H₂O': { color: 'rgba(64, 128, 128, 0.4)', fullName: 'Water', features: [
         [1.1, 0.1, 0.8], [1.4, 0.15, 1.0], [1.9, 0.15, 1.2], [2.7, 0.2, 1.5]
@@ -100,7 +98,6 @@ const GAS_DESCRIPTIONS = {
     'CH₄': { title: 'Methane (CH₄)', content: 'Methane can be produced by both geological activity and biological processes (methanogenesis). Its presence, especially alongside oxygen, is a compelling potential biosignature.' },
     'SO₂': { title: 'Sulfur Dioxide (SO₂)', content: 'Primarily associated with volcanic activity. High concentrations can create a toxic atmosphere and contribute to acid rain, generally considered hostile to life.' },
     'CO': { title: 'Carbon Monoxide (CO)', content: 'A toxic gas that can be produced by geological or industrial processes. It is generally considered an anti-biosignature, as life on Earth readily consumes it.' },
-    'K': { title: 'Potassium (K)', content: 'In gaseous form, Potassium in an atmosphere is typically found in very hot planets, indicating extreme temperatures not conducive to life as we know it.' },
     'NH₃': { title: 'Ammonia (NH₃)', content: 'Ammonia can indicate chemical activity or reducing atmospheres, sometimes linked to biological or volcanic processes.' }
 };
 
@@ -119,7 +116,7 @@ const SIMULATION_INFO = {
 };
 
 let atmosphereState = {
-    concentrations: { 'H₂O': 5, 'CO₂': 80, 'CH₄': 20, 'CO': 40, 'K': 50, 'SO₂': 10, 'O₂': 15, 'O₃': 5, 'NH₃': 0 },
+    concentrations: { 'H₂O': 1, 'CO₂': 0.04, 'CH₄': 0.01, 'CO': 0, 'SO₂': 0, 'O₂': 21, 'O₃': 0.01, 'NH₃': 0 },
 };
 
 let derivedPlanetData = {};
@@ -701,20 +698,19 @@ function calculateAtmosphericSimilarity() {
         return Math.exp(-Math.pow(conc - ideal, 2) / (2 * Math.pow(tolerance, 2)));
     };
 
-    // Scores for individual components (0-1)
-    const h2o_score = concs['H₂O'] / 10; // Capped at 10%
-    const o2_score = scoreComponent(concs['O₂'], 21, 25); // Peak at 21%
-    const co2_score = 1 - Math.min(1, (concs['CO₂'] / 100) * 1.5); // Penalize above ~66%
-    const o3_score = concs['O₃'] / 10; // Capped at 10%
-    const ch4_score = scoreComponent(concs['CH₄'], 2, 25); // Small amounts are ok
+    // Scores for individual components (0-1), adjusted for new ranges
+    const h2o_score = concs['H₂O'] / 10;
+    const o2_score = scoreComponent(concs['O₂'], 21, 5); // More sensitive around 21%
+    const co2_score = 1 - Math.min(1, (concs['CO₂'] / 1) * 2); // Penalize above 0.5%
+    const o3_score = concs['O₃'] / 0.1;
+    const ch4_score = scoreComponent(concs['CH₄'], 0.01, 0.05);
 
     // Penalties for toxic gases
     const toxic_penalty = (
-        (concs['CO'] / 100) + 
-        (concs['SO₂'] / 100) + 
-        (concs['K'] / 100) +
-        (concs['NH₃'] / 100)
-    ) / 4;
+        (concs['CO'] / 0.1) + 
+        (concs['SO₂'] / 0.1) + 
+        (concs['NH₃'] / 0.1)
+    ) / 3;
 
     // Weights for each component
     const weights = {
@@ -734,10 +730,11 @@ function calculateAtmosphericSimilarity() {
         ch4_score * weights.ch4;
 
     // Apply toxic penalty
-    const final_score = positive_score * (1 - toxic_penalty * 1.5); // Increase penalty effect
+    const final_score = positive_score * (1 - toxic_penalty * 1.5);
     
-    return Math.max(0, Math.min(1, final_score)); // Clamp between 0 and 1
+    return Math.max(0, Math.min(1, final_score));
 }
+
 
 function updatePhiMeter() {
     const score = calculateAtmosphericSimilarity();
@@ -762,19 +759,28 @@ function initializeInteractiveAtmospherePanel() {
     const panelBody = document.getElementById('atmosphere-controls-container');
     if(!panelBody) return;
     
-    const gases = Object.keys(ABSORPTION_FEATURES);
+    const gasControlsConfig = [
+        { key: 'H₂O', max: 10, step: 0.1, decimals: 1 },
+        { key: 'O₂',  max: 25, step: 0.1, decimals: 1 },
+        { key: 'CO₂', max: 1,  step: 0.01, decimals: 2 },
+        { key: 'CH₄', max: 0.1, step: 0.001, decimals: 3 },
+        { key: 'O₃',  max: 0.1, step: 0.001, decimals: 3 },
+        { key: 'SO₂', max: 0.1, step: 0.001, decimals: 3 },
+        { key: 'NH₃', max: 0.1, step: 0.001, decimals: 3 },
+        { key: 'CO',  max: 0.1, step: 0.001, decimals: 3 },
+    ];
 
-    const generateControls = (gasList) => gasList.map(elem => {
-        const feature = ABSORPTION_FEATURES[elem];
-        const maxVal = (elem === 'H₂O' || elem === 'O₃') ? 10 : 100;
+    const generateControls = (config) => config.map(gas => {
+        const feature = ABSORPTION_FEATURES[gas.key];
+        const value = atmosphereState.concentrations[gas.key];
         return `
         <div class="control-group green">
-            <label for="${elem}-slider">
-                <button class="gas-info-button" data-gas="${elem}" aria-label="More information about ${feature.fullName}" style="background-color: ${feature.color};"></button>
-                ${elem} Conc.
-                <span id="${elem}-value">${atmosphereState.concentrations[elem]}%</span>
+            <label for="${gas.key}-slider">
+                <button class="gas-info-button" data-gas="${gas.key}" aria-label="More information about ${feature.fullName}" style="background-color: ${feature.color};"></button>
+                ${gas.key} Abundance
+                <span id="${gas.key}-value">${value.toFixed(gas.decimals)}%</span>
             </label>
-            <input type="range" class="concentration-slider" data-element="${elem}" id="${elem}-slider" min="0" max="${maxVal}" step="1" value="${atmosphereState.concentrations[elem]}">
+            <input type="range" class="concentration-slider" data-element="${gas.key}" id="${gas.key}-slider" min="0" max="${gas.max}" step="${gas.step}" value="${value}">
         </div>
     `}).join('');
 
@@ -788,8 +794,10 @@ function initializeInteractiveAtmospherePanel() {
             </div>
             <div class="spectroscopy-interactive-area">
                 <div class="spectroscopy-controls">
-                    <h4>Atmospheric Composition</h4>
-                    ${generateControls(gases)}
+                    <h4>Atmospheric Composition (Relative Abundance)</h4>
+                    <p style="font-size:0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">Adjust relative gas abundances to explore how different atmospheres affect the simulated spectrum and Earth-likeness score.</p>
+                    ${generateControls(gasControlsConfig)}
+                    <p style="font-size:0.8rem; color: var(--text-secondary); margin-top: 1rem; line-height: 1.5;">Values represent relative gas abundances scaled for visualization. Real atmospheres vary with pressure, temperature, and total composition.</p>
                 </div>
                 <div class="spectroscopy-main-content">
                     <div class="chart-container" style="background-color: #0c101a; flex-grow: 1; display: flex; flex-direction: column; position: relative; border-color: rgba(255,255,255,0.3);">
@@ -797,7 +805,10 @@ function initializeInteractiveAtmospherePanel() {
                         <canvas id="atmosphere-chart" style="flex-grow: 1; min-height: 260px;"></canvas>
                     </div>
                     <div class="phi-meter-container">
-                        <h4>Earth Atmospheric Similarity</h4>
+                        <h4>
+                            Earth Atmospheric Similarity
+                            <button class="info-button" data-info="phi-bar" aria-label="More information about the Earth Atmospheric Similarity score">ⓘ</button>
+                        </h4>
                         <div class="phi-meter-display">
                             <div id="phi-meter-bar-wrapper" class="phi-meter-bar-wrapper" title="This score is illustrative and based on relative gas composition, not a physical simulation.">
                                 <div class="phi-meter-bar"></div>
@@ -824,40 +835,54 @@ function initializeInteractiveAtmospherePanel() {
     panelBody.querySelectorAll('.concentration-slider').forEach(slider => {
         slider.addEventListener('input', e => {
             const element = e.target.dataset.element;
-            const value = parseInt(e.target.value, 10);
+            const value = parseFloat(e.target.value);
+            const config = gasControlsConfig.find(g => g.key === element);
             atmosphereState.concentrations[element] = value;
-            document.getElementById(`${element}-value`).textContent = `${value}%`;
+            document.getElementById(`${element}-value`).textContent = `${value.toFixed(config.decimals)}%`;
             updateUI();
         });
     });
 
-    // Modal logic
-    const modal = document.getElementById('spectroscopy-info-modal');
-    const modalTitle = document.getElementById('spectroscopy-modal-title');
-    const modalBody = modal.querySelector('.modal-body');
-    const closeBtns = modal.querySelectorAll('.modal-close');
+    // Modal logic for gas info, spec info, and the new PHI bar info
+    const specModal = document.getElementById('spectroscopy-info-modal');
+    const infoModal = document.getElementById('info-modal');
 
-    const showModal = (info) => {
-        if (info) {
-            modalTitle.textContent = info.title;
-            modalBody.innerHTML = `<p>${info.content}</p>`;
-            modal.classList.add('visible');
-        }
+    const showModal = (modalEl, title, body) => {
+        modalEl.querySelector('.modal-header h3').textContent = title;
+        modalEl.querySelector('.modal-body').innerHTML = body;
+        modalEl.classList.add('visible');
     };
-    const hideModal = () => modal.classList.remove('visible');
+    
+    const hideAllModals = () => {
+        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible'));
+    };
+    
+    document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', hideAllModals));
+    document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) hideAllModals(); }));
 
-    document.getElementById('spec-info-button').addEventListener('click', () => showModal(SIMULATION_INFO));
+    document.getElementById('spec-info-button').addEventListener('click', () => {
+        showModal(specModal, SIMULATION_INFO.title, SIMULATION_INFO.content);
+    });
+    
     panelBody.querySelectorAll('.gas-info-button').forEach(button => {
-        button.addEventListener('click', () => showModal(GAS_DESCRIPTIONS[button.dataset.gas]));
+        button.addEventListener('click', () => {
+            const gasInfo = GAS_DESCRIPTIONS[button.dataset.gas];
+            showModal(infoModal, gasInfo.title, `<p>${gasInfo.content}</p>`);
+        });
     });
 
-    closeBtns.forEach(btn => btn.addEventListener('click', hideModal));
-    modal.addEventListener('click', e => { if (e.target === modal) hideModal(); });
+    panelBody.querySelector('.info-button[data-info="phi-bar"]').addEventListener('click', () => {
+        showModal(infoModal, "About the Similarity Score", `
+            <p>This score is illustrative and based on relative gas composition, not a physical simulation.</p>
+            <p>Only the main spectrally active gases that strongly influence climate balance and potential biosignatures are included. Other background or spectrally weak components, such as nitrogen or hydrogen, were excluded since they have little visible effect in JWST’s range but are still important in real planetary atmospheres.</p>
+        `);
+    });
 
     // Initial updates
     updateAtmosphereChart();
     updatePhiMeter();
 }
+
 
 function updateAtmosphereChart() {
     if (!atmosphereChart) return;
@@ -1047,14 +1072,14 @@ function loadKeplerModel() {
     };
 
     loader.load(
-        'assets/kepler.glb',
+        'https://storage.googleapis.com/aistudio-o-demos-public/kepler.glb',
         (gltf) => { // onSuccess
-            console.log("Successfully loaded custom Kepler model from assets/kepler.glb");
+            console.log("Successfully loaded custom Kepler model from CDN.");
             onModelLoad(gltf.scene);
         },
         undefined, // onProgress
         (error) => { // onError
-            console.warn("Could not load 'assets/kepler.glb'. Please ensure the file exists and is correctly named. Falling back to the procedural model.");
+            console.warn("Could not load Kepler model from CDN. Falling back to the procedural model.");
             const proceduralModel = createKeplerModel();
             onModelLoad(proceduralModel);
         }
@@ -1208,14 +1233,14 @@ function loadJWSTModel() {
     };
 
     loader.load(
-        'assets/jwst_model.glb', 
+        'https://storage.googleapis.com/aistudio-o-demos-public/jwst_model.glb', 
         (gltf) => {
             console.log("Successfully loaded custom JWST model.");
             onModelLoad(gltf.scene);
         },
         undefined,
         (error) => {
-            console.warn("Could not load 'assets/jwst_model.glb'. Falling back to the procedural model. To use your own model, please upload it to the 'assets' directory.");
+            console.warn("Could not load JWST model from CDN. Falling back to the procedural model.");
             
             const proceduralModel = createJWSTModel();
             onModelLoad(proceduralModel);
@@ -1518,6 +1543,8 @@ function getAtmosphereSpectrumData(composition, planetProps, baselineDepth) {
     const effectiveFactor = atmospherePotential * (1 - (cloudiness / 100));
     const featureAmplitudePPM = 20 + effectiveFactor * 1800;
     const featureAmplitude = featureAmplitudePPM / 1e6;
+    
+    const maxConcs = { 'H₂O': 10, 'O₂': 25, 'CO₂': 1, 'CH₄': 0.1, 'O₃': 0.1, 'SO₂': 0.1, 'NH₃': 0.1, 'CO': 0.1 };
 
     const highResPoints = 800;
     const minW = 0.5, maxW = 5.5;
@@ -1526,8 +1553,8 @@ function getAtmosphereSpectrumData(composition, planetProps, baselineDepth) {
         const lambda = minW + (i / (highResPoints - 1)) * (maxW - minW);
         let absorption = 0;
         Object.entries(composition).forEach(([gas, conc]) => {
-            if (conc > 0) {
-                const maxConc = (gas === 'H₂O' || gas === 'O₃') ? 10 : 100;
+            if (conc > 0 && ABSORPTION_FEATURES[gas]) {
+                const maxConc = maxConcs[gas];
                 ABSORPTION_FEATURES[gas].features.forEach(([center, stdDev, strength]) => {
                     const amp = featureAmplitude * (conc / maxConc) * strength;
                     absorption += gaussian(lambda, center, stdDev, amp);
@@ -1560,7 +1587,6 @@ function getAtmosphereSpectrumData(composition, planetProps, baselineDepth) {
 
     const bandAnnotations = {};
     const bandDefs = {
-        'K':   [0.85, 0.4, 2.29], 
         'O₂':  [1.27, 0.15, 2.24],
         'H₂O': [1.8, 1.2, 2.29],
         'CO':  [2.35, 0.3, 2.24],
@@ -1672,6 +1698,13 @@ const infoModalContent = {
                 <li>A <strong>low score (near 0)</strong> suggests the signal might be caused by stellar activity (like starspots), instrument errors, or other non-planetary phenomena.</li>
             </ul>
             <p>This automated score is crucial for efficiently filtering out thousands of false positives from large datasets like Kepler's.</p>
+        `
+    },
+    'phi-bar': {
+        title: 'About the Similarity Score',
+        content: `
+            <p>This score is illustrative and based on relative gas composition, not a physical simulation.</p>
+            <p>Only the main spectrally active gases that strongly influence climate balance and potential biosignatures are included. Other background or spectrally weak components, such as nitrogen or hydrogen, were excluded since they have little visible effect in JWST’s range but are still important in real planetary atmospheres.</p>
         `
     }
 };
