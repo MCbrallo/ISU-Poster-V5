@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -265,12 +266,27 @@
         }
 
         .creators-list p {
-            font-size: clamp(0.3rem, 0.6vw, 0.34rem);
+            font-size: 0.9rem;
             font-weight: 400;
             color: rgba(209, 213, 219, 0.85);
             letter-spacing: 0.5px;
             line-height: 1.6;
             text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+        }
+        
+        .creator {
+            white-space: nowrap;
+        }
+
+        .creator-flag {
+            width: 1.4em;
+            height: 1em;
+            margin-right: 0.5em;
+            vertical-align: -0.1em;
+            border-radius: 2px;
+            display: inline-block;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+            object-fit: cover;
         }
 
         .scroll-arrow {
@@ -2148,8 +2164,38 @@
         </div>
         <div id="landing-bottom-content">
             <div class="creators-list">
-                <p>Assaf Shaked · Juliana Merege · Yankit Kukreja · Colin Gross</p>
-                <p>Michael Cebral · Raul Mariani · Vanessa Van Decker</p>
+                <p>
+                    <span class="creator">
+                        <img src="assets/israel.png" alt="Flag of Israel" class="creator-flag">
+                        Assaf Shaked
+                    </span> &middot; 
+                    <span class="creator">
+                        <img src="assets/brazil.png" alt="Flag of Brazil" class="creator-flag">
+                        Juliana Merege
+                    </span> &middot; 
+                    <span class="creator">
+                        <img src="assets/india.png" alt="Flag of India" class="creator-flag">
+                        Yankit Kukreja
+                    </span>
+                </p>
+                <p>
+                    <span class="creator">
+                        <img src="assets/switzerland.png" alt="Flag of Switzerland" class="creator-flag">
+                        Colin Gross
+                    </span> &middot; 
+                    <span class="creator">
+                        <img src="assets/spain.png" alt="Flag of Spain" class="creator-flag">
+                        Michael Cebral
+                    </span> &middot; 
+                    <span class="creator">
+                        <img src="assets/puerto-rico.png" alt="Flag of Puerto Rico" class="creator-flag">
+                        Raul Mariani
+                    </span> &middot; 
+                    <span class="creator">
+                        <img src="assets/canada.png" alt="Flag of Canada" class="creator-flag">
+                        Vanessa Van Decker
+                    </span>
+                </p>
             </div>
             <div class="scroll-arrow">
                  <p class="scroll-prompt">Scroll to Explore</p>
