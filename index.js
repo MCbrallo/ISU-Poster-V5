@@ -1,4 +1,5 @@
 
+
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -88,11 +89,37 @@ const ABSORPTION_FEATURES = {
     'SO₂': { color: 'rgba(153, 153, 85, 0.4)', fullName: 'Sulfur Dioxide', features: [[4.05, 0.05, 0.9]], label: ['Sulfur Dioxide', 'SO₂'] },
     'CO₂': { color: 'rgba(85, 136, 85, 0.4)', fullName: 'Carbon Dioxide', features: [[4.3, 0.1, 1.8]], label: ['Carbon Dioxide', 'CO₂'] },
     'O₃':  { color: 'rgba(85, 119, 136, 0.4)', fullName: 'Ozone', features: [[4.8, 0.05, 0.6]], label: ['Ozone', 'O₃'] },
+    'NH₃': { color: 'rgba(135, 206, 250, 0.4)', fullName: 'Ammonia', features: [[2.15, 0.15, 1.3]], label: ['Ammonia', 'NH₃'] },
 };
 
+const GAS_DESCRIPTIONS = {
+    'H₂O': { title: 'Water Vapor (H₂O)', content: 'Liquid water is considered essential for life as we know it. Its vapor form in an atmosphere is a primary target in the search for habitable worlds.' },
+    'O₂': { title: 'Oxygen (O₂)', content: 'On Earth, significant atmospheric oxygen is produced by photosynthesis. Its presence could be a strong indicator of biological activity, though non-biological sources are also possible.' },
+    'O₃': { title: 'Ozone (O₃)', content: "Ozone is formed from oxygen and protects a planet's surface from harmful ultraviolet radiation. Its presence implies the existence of O₂, making it an important secondary biosignature." },
+    'CO₂': { title: 'Carbon Dioxide (CO₂)', content: 'A common greenhouse gas essential for photosynthesis. While vital in moderate amounts, very high concentrations can lead to runaway greenhouse effects, like on Venus.' },
+    'CH₄': { title: 'Methane (CH₄)', content: 'Methane can be produced by both geological activity and biological processes (methanogenesis). Its presence, especially alongside oxygen, is a compelling potential biosignature.' },
+    'SO₂': { title: 'Sulfur Dioxide (SO₂)', content: 'Primarily associated with volcanic activity. High concentrations can create a toxic atmosphere and contribute to acid rain, generally considered hostile to life.' },
+    'CO': { title: 'Carbon Monoxide (CO)', content: 'A toxic gas that can be produced by geological or industrial processes. It is generally considered an anti-biosignature, as life on Earth readily consumes it.' },
+    'K': { title: 'Potassium (K)', content: 'In gaseous form, Potassium in an atmosphere is typically found in very hot planets, indicating extreme temperatures not conducive to life as we know it.' },
+    'NH₃': { title: 'Ammonia (NH₃)', content: 'Ammonia can indicate chemical activity or reducing atmospheres, sometimes linked to biological or volcanic processes.' }
+};
+
+const SIMULATION_INFO = {
+    title: 'About this Simulation',
+    content: `
+        <p>This chart simulates how astronomers use the <strong>James Webb Space Telescope (JWST)</strong> to study exoplanet atmospheres. It is a simplified model for educational purposes.</p>
+        <h4>How it Works:</h4>
+        <p>When a planet passes in front of its star, some starlight shines through its atmosphere. Different gases in the atmosphere absorb light at specific wavelengths (colors), creating a unique "fingerprint" or spectrum.</p>
+        <ul>
+            <li>The <strong>dips in the graph</strong> represent light being absorbed by gases like water (H₂O) or methane (CH₄).</li>
+            <li>The <strong>height of a dip</strong> indicates how much of a gas might be present.</li>
+        </ul>
+        <p>By analyzing this spectrum, scientists can determine what an exoplanet's atmosphere is made of, providing crucial clues in the search for habitable worlds.</p>
+    `
+};
 
 let atmosphereState = {
-    concentrations: { 'H₂O': 70, 'CO₂': 80, 'CH₄': 20, 'CO': 40, 'K': 50, 'SO₂': 10, 'O₂': 15, 'O₃': 5 },
+    concentrations: { 'H₂O': 5, 'CO₂': 80, 'CH₄': 20, 'CO': 40, 'K': 50, 'SO₂': 10, 'O₂': 15, 'O₃': 5, 'NH₃': 0 },
 };
 
 let derivedPlanetData = {};
@@ -474,7 +501,10 @@ function updateSystemParameters(param, value) {
     calculateDerivedAtmosphereData(); // Recalculate with new planet data
     updateDerivedDataUI();
     updateTransitChartScale();
-    debounce(updateAtmosphereChart, 100);
+    debounce(() => {
+        updateAtmosphereChart();
+        updatePhiMeter();
+    }, 100);
 }
 
 function updateStarVisuals() {
@@ -617,9 +647,9 @@ function initializeInteractiveTransitPanel() {
         <div class="config-section">
             <h3>System Parameters</h3>
             <div class="control-group"><label for="star-type-select">Star Type</label><select id="star-type-select">${starOptions}</select></div>
-            <div class="control-group"><label for="planet-radius-slider">Planet Radius <span id="planet-radius-value">${planet.radius.toFixed(2)} R&#x2097;</span></label><input type="range" id="planet-radius-slider" min="0.1" max="1.5" step="0.05" value="${planet.radius}"></div>
+            <div class="control-group"><label for="planet-radius-slider">Planet Radius <span>${planet.radius.toFixed(2)} R&#x2097;</span></label><input type="range" id="planet-radius-slider" min="0.1" max="1.5" step="0.05" value="${planet.radius}"></div>
             <div class="control-group"><label for="orbit-radius-slider">Orbital Distance (Log Scale) <span id="orbit-radius-value">${derivedPlanetData.distanceAU.toFixed(2)} AU</span></label><input type="range" id="orbit-radius-slider" min="${SCIENTIFIC_MIN_AU}" max="${SCIENTIFIC_MAX_AU}" step="0.1" value="${planet.orbitRadius}"></div>
-            <div class="control-group"><label for="orbital-speed-slider">Animation Speed <span id="orbital-speed-value">${planet.animationSpeed.toFixed(1)}x</span></label><input type="range" id="orbital-speed-slider" min="0.1" max="5.0" step="0.1" value="${planet.animationSpeed}"></div>
+            <div class="control-group"><label for="orbital-speed-slider">Animation Speed <span>${planet.animationSpeed.toFixed(1)}x</span></label><input type="range" id="orbital-speed-slider" min="0.1" max="5.0" step="0.1" value="${planet.animationSpeed}"></div>
         </div>
         <div class="config-section">
             <h3>Planet Selection</h3>
@@ -637,12 +667,12 @@ function initializeInteractiveTransitPanel() {
 
     panelBody.querySelector('#star-type-select').addEventListener('change', (e) => updateSystemParameters('starType', e.target.value));
     panelBody.querySelector('#planet-radius-slider').addEventListener('input', (e) => {
-        panelBody.querySelector('#planet-radius-value').innerHTML = `${parseFloat(e.target.value).toFixed(2)} R&#x2097;`;
+        panelBody.querySelector('label[for="planet-radius-slider"] span').innerHTML = `${parseFloat(e.target.value).toFixed(2)} R&#x2097;`;
         updateSystemParameters('radius', parseFloat(e.target.value));
     });
     panelBody.querySelector('#orbit-radius-slider').addEventListener('input', (e) => updateSystemParameters('orbitRadius', parseFloat(e.target.value)));
     panelBody.querySelector('#orbital-speed-slider').addEventListener('input', (e) => {
-        panelBody.querySelector('#orbital-speed-value').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+        panelBody.querySelector('label[for="orbital-speed-slider"] span').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
         updateSystemParameters('animationSpeed', parseFloat(e.target.value));
     });
     
@@ -664,6 +694,70 @@ function initializeInteractiveTransitPanel() {
     updateSystemParameters();
 }
 
+function calculateAtmosphericSimilarity() {
+    const concs = atmosphereState.concentrations;
+
+    const scoreComponent = (conc, ideal, tolerance) => {
+        return Math.exp(-Math.pow(conc - ideal, 2) / (2 * Math.pow(tolerance, 2)));
+    };
+
+    // Scores for individual components (0-1)
+    const h2o_score = concs['H₂O'] / 10; // Capped at 10%
+    const o2_score = scoreComponent(concs['O₂'], 21, 25); // Peak at 21%
+    const co2_score = 1 - Math.min(1, (concs['CO₂'] / 100) * 1.5); // Penalize above ~66%
+    const o3_score = concs['O₃'] / 10; // Capped at 10%
+    const ch4_score = scoreComponent(concs['CH₄'], 2, 25); // Small amounts are ok
+
+    // Penalties for toxic gases
+    const toxic_penalty = (
+        (concs['CO'] / 100) + 
+        (concs['SO₂'] / 100) + 
+        (concs['K'] / 100) +
+        (concs['NH₃'] / 100)
+    ) / 4;
+
+    // Weights for each component
+    const weights = {
+        h2o: 0.35,
+        o2: 0.35,
+        co2: 0.15,
+        o3: 0.1,
+        ch4: 0.05
+    };
+
+    // Weighted average of positive components
+    const positive_score = 
+        h2o_score * weights.h2o +
+        o2_score * weights.o2 +
+        co2_score * weights.co2 +
+        o3_score * weights.o3 +
+        ch4_score * weights.ch4;
+
+    // Apply toxic penalty
+    const final_score = positive_score * (1 - toxic_penalty * 1.5); // Increase penalty effect
+    
+    return Math.max(0, Math.min(1, final_score)); // Clamp between 0 and 1
+}
+
+function updatePhiMeter() {
+    const score = calculateAtmosphericSimilarity();
+    const indicator = document.getElementById('phi-meter-indicator');
+    const valueDisplay = document.getElementById('phi-value-display');
+
+    if (!indicator || !valueDisplay) return;
+
+    indicator.style.left = `${score * 100}%`;
+    valueDisplay.textContent = score.toFixed(2);
+
+    let color = 'var(--accent-red)';
+    if (score > 0.75) {
+        color = 'var(--accent-green)';
+    } else if (score > 0.4) {
+        color = 'var(--accent-yellow)';
+    }
+    valueDisplay.style.color = color;
+}
+
 function initializeInteractiveAtmospherePanel() {
     const panelBody = document.getElementById('atmosphere-controls-container');
     if(!panelBody) return;
@@ -672,13 +766,15 @@ function initializeInteractiveAtmospherePanel() {
 
     const generateControls = (gasList) => gasList.map(elem => {
         const feature = ABSORPTION_FEATURES[elem];
+        const maxVal = (elem === 'H₂O' || elem === 'O₃') ? 10 : 100;
         return `
         <div class="control-group green">
             <label for="${elem}-slider">
-                <span style="display: inline-block; width: 10px; height: 10px; background-color: ${feature.color}; border-radius: 50%; margin-right: 8px; vertical-align: middle; border: 1px solid rgba(255,255,255,0.5);"></span>
-                ${elem} Concentration <span id="${elem}-value">${atmosphereState.concentrations[elem]}%</span>
+                <button class="gas-info-button" data-gas="${elem}" aria-label="More information about ${feature.fullName}" style="background-color: ${feature.color};"></button>
+                ${elem} Conc.
+                <span id="${elem}-value">${atmosphereState.concentrations[elem]}%</span>
             </label>
-            <input type="range" class="concentration-slider" data-element="${elem}" id="${elem}-slider" min="0" max="100" step="1" value="${atmosphereState.concentrations[elem]}">
+            <input type="range" class="concentration-slider" data-element="${elem}" id="${elem}-slider" min="0" max="${maxVal}" step="1" value="${atmosphereState.concentrations[elem]}">
         </div>
     `}).join('');
 
@@ -697,8 +793,19 @@ function initializeInteractiveAtmospherePanel() {
                 </div>
                 <div class="spectroscopy-main-content">
                     <div class="chart-container" style="background-color: #0c101a; flex-grow: 1; display: flex; flex-direction: column; position: relative; border-color: rgba(255,255,255,0.3);">
-                        <div id="spec-info-button" style="position: absolute; top: 10px; right: 10px; cursor: pointer; z-index: 10; font-size: 1.5rem; color: #ccc; line-height: 1;" title="About this simulation">&#9432;</div>
+                        <button id="spec-info-button" class="info-button" aria-label="About this simulation" title="About this simulation">ⓘ</button>
                         <canvas id="atmosphere-chart" style="flex-grow: 1; min-height: 260px;"></canvas>
+                    </div>
+                    <div class="phi-meter-container">
+                        <h4>Earth Atmospheric Similarity</h4>
+                        <div class="phi-meter-display">
+                            <div id="phi-meter-bar-wrapper" class="phi-meter-bar-wrapper" title="This score is illustrative and based on relative gas composition, not a physical simulation.">
+                                <div class="phi-meter-bar"></div>
+                                <div id="phi-meter-indicator" class="phi-meter-indicator"></div>
+                            </div>
+                            <div id="phi-value-display" class="phi-value-display">0.00</div>
+                        </div>
+                        <p id="phi-disclaimer" class="phi-disclaimer">This score represents how closely the selected atmospheric composition resembles Earth’s, focusing on gases that support liquid water and complex chemistry. It is a simplified, qualitative component of the full PHI framework.</p>
                     </div>
                 </div>
             </div>
@@ -708,7 +815,10 @@ function initializeInteractiveAtmospherePanel() {
     createAtmosphereChart();
 
     const updateUI = () => {
-        debounce(updateAtmosphereChart, 100);
+        debounce(() => {
+            updateAtmosphereChart();
+            updatePhiMeter();
+        }, 100);
     };
 
     panelBody.querySelectorAll('.concentration-slider').forEach(slider => {
@@ -723,15 +833,30 @@ function initializeInteractiveAtmospherePanel() {
 
     // Modal logic
     const modal = document.getElementById('spectroscopy-info-modal');
-    const infoBtn = document.getElementById('spec-info-button');
+    const modalTitle = document.getElementById('spectroscopy-modal-title');
+    const modalBody = modal.querySelector('.modal-body');
     const closeBtns = modal.querySelectorAll('.modal-close');
 
-    const showModal = () => modal.classList.add('visible');
+    const showModal = (info) => {
+        if (info) {
+            modalTitle.textContent = info.title;
+            modalBody.innerHTML = `<p>${info.content}</p>`;
+            modal.classList.add('visible');
+        }
+    };
     const hideModal = () => modal.classList.remove('visible');
 
-    infoBtn.addEventListener('click', showModal);
+    document.getElementById('spec-info-button').addEventListener('click', () => showModal(SIMULATION_INFO));
+    panelBody.querySelectorAll('.gas-info-button').forEach(button => {
+        button.addEventListener('click', () => showModal(GAS_DESCRIPTIONS[button.dataset.gas]));
+    });
+
     closeBtns.forEach(btn => btn.addEventListener('click', hideModal));
     modal.addEventListener('click', e => { if (e.target === modal) hideModal(); });
+
+    // Initial updates
+    updateAtmosphereChart();
+    updatePhiMeter();
 }
 
 function updateAtmosphereChart() {
@@ -1354,15 +1479,7 @@ function createAtmosphereChart() {
             }, 
             plugins: { 
                 legend: { 
-                    display: true,
-                    position: 'top',
-                    align: 'start',
-                    labels: { 
-                        color: '#ccc', 
-                        boxWidth: 15, 
-                        padding: 20, 
-                        font: { family: "'Inter', sans-serif", size: 14 },
-                    },
+                    display: false,
                 }, 
                 title: { 
                     display: true, 
@@ -1410,8 +1527,9 @@ function getAtmosphereSpectrumData(composition, planetProps, baselineDepth) {
         let absorption = 0;
         Object.entries(composition).forEach(([gas, conc]) => {
             if (conc > 0) {
+                const maxConc = (gas === 'H₂O' || gas === 'O₃') ? 10 : 100;
                 ABSORPTION_FEATURES[gas].features.forEach(([center, stdDev, strength]) => {
-                    const amp = featureAmplitude * (conc / 100) * strength;
+                    const amp = featureAmplitude * (conc / maxConc) * strength;
                     absorption += gaussian(lambda, center, stdDev, amp);
                 });
             }
@@ -1449,7 +1567,8 @@ function getAtmosphereSpectrumData(composition, planetProps, baselineDepth) {
         'CH₄': [3.3, 0.9, 2.29],
         'SO₂': [4.0, 0.15, 2.24],
         'CO₂': [4.4, 0.4, 2.29],
-        'O₃':  [4.8, 0.2, 2.24]
+        'O₃':  [4.8, 0.2, 2.24],
+        'NH₃': [2.15, 0.3, 2.24]
     };
 
     Object.entries(bandDefs).forEach(([gasKey, [center, width, labelY]]) => {
@@ -2120,61 +2239,85 @@ function renderDrawer(planet) {
                     <span><strong>Radius:</strong> ${formatValue(planet.pl_rade, 'R<sub>⊕</sub>')}</span>
                     <span><strong>Mass:</strong> ${formatValue(planet.pl_masse, 'M<sub>⊕</sub>')}</span>
                     <span><strong>Density:</strong> ${formatValue(planet.pl_dens, 'g/cm³')}</span>
-                    <span><strong>Eq. Temp:</strong> ${formatValue(planet.pl_eqt, 'K', 0)}</span>
-                    <span><strong>Insolation:</strong> ${formatValue(planet.pl_insol, 'x Earth')}</span>
-                    <span><strong>Orbit Period:</strong> ${formatValue(planet.pl_orbper, 'days')}</span>
-                    <span><strong>Orbit Axis:</strong> ${formatValue(planet.pl_orbsmax, 'AU')}</span>
-                    <span><strong>Discovered:</strong> ${planet.disc_year || 'N/A'}</span>
-                    <span style="grid-column: 1 / -1;"><strong>Host Star:</strong> ${formatValue(planet.st_rad, 'R<sub>☉</sub>')}, ${formatValue(planet.st_mass, 'M<sub>☉</sub>')}, ${formatValue(planet.st_teff, 'K', 0)}, ${formatValue(planet.st_lum, 'L<sub>☉</sub>')}</span>
+                    <span><strong>Insolation:</strong> ${formatValue(planet.pl_insol, 'F<sub>⊕</sub>')}</span>
+                    <span><strong>Period:</strong> ${formatValue(planet.pl_orbper, 'days')}</span>
+                    <span><strong>Eq. Temp:</strong> ${formatValue(planet.pl_eqt, 'K')}</span>
+                    <span><strong>Star Temp:</strong> ${formatValue(planet.st_teff, 'K', 0)}</span>
+                    <span><strong>Star Radius:</strong> ${formatValue(planet.st_rad, 'R<sub>☉</sub>')}</span>
                 </div>
-            </details>
-            <details open>
-                <summary><h4>AI Pipeline Analysis (Simulated)</h4></summary>
+             </details>
+             <details open>
+                <summary><h4>Stage 1 Analysis</h4></summary>
                 <div class="collapsible-content">
-                    <p><strong>Stage 1 Result: <span style="font-weight: 700; color: ${stage1.passed ? 'var(--accent-green)' : 'var(--accent-red)'}">${stage1.passed ? 'PASSED' : 'FAILED'}</span></strong></p>
-                    <div class="data-item" style="margin-top: 0.5rem; background: rgba(255,255,255,0.05);"><div class="data-item-label">Earth Similarity Index (ESI) <span style="font-weight: 400; font-style: italic;">(Real Data)</span></div><div class="data-item-value" style="font-size: 1.5rem; color: ${esiColor}">${stage1.esi.aggregate.toFixed(3)}</div></div>
-                    <div class="data-item" style="margin-top: 0.5rem; background: rgba(255,255,255,0.05);"><div class="data-item-label">Light Curve Plausibility <span style="font-weight: 400; font-style: italic;">(Simulated AI Score)</span></div><div class="data-item-value" style="font-size: 1.5rem; color: ${lcColor}">${stage1.lcScore.toFixed(3)}</div></div>
-                    
-                    <p style="margin-top: 1.5rem;"><strong>Stage 2 Result: <span style="font-weight: 700; color: ${stage1.passed ? (stage2.passed ? 'var(--accent-green)' : 'var(--accent-red)') : '#888'}">${stage1.passed ? (stage2.passed ? 'PASSED' : 'FAILED') : 'NOT RUN'}</span></strong></p>
-                    <div class="data-item" style="margin-top: 0.5rem; background: rgba(255,255,255,0.05);"><div class="data-item-label">PHI Likelihood <span style="font-weight: 400; font-style: italic;">(Simulated AI Score)</span></div><div class="data-item-value" style="font-size: 1.5rem; color: ${phiColor}">${stage1.passed ? stage2.phiLikelihood.toFixed(3) : '-.--'}</div></div>
+                    <div class="output-box" style="margin-top: 0;">
+                        <div class="label">Earth Similarity Index (ESI)</div>
+                        <div class="value" style="color: ${esiColor};">${formatValue(stage1.esi.aggregate)}</div>
+                        <div id="esi-threshold-indicator" style="color: ${esiColor};">Threshold: ${pipelineState.thresholds.esi.toFixed(2)}</div>
+                    </div>
+                    <div class="output-box">
+                        <div class="label">Light Curve Plausibility</div>
+                        <div class="value" style="color: ${lcColor};">${formatValue(stage1.lcScore)}</div>
+                        <div id="lc-threshold-indicator" style="color: ${lcColor};">Threshold: ${pipelineState.thresholds.lc.toFixed(2)}</div>
+                    </div>
                 </div>
-            </details>
-             <details>
-                <summary><h4>Data Provenance</h4></summary>
-                <div class="collapsible-content" style="font-size: 0.85rem; line-height: 1.6;">
-                    <p><strong>Observational Data:</strong> Real data from the NASA Exoplanet Archive (Kepler mission).</p>
-                    <p><strong>AI Scores & Atmosphere:</strong> Simulated for this demonstration to illustrate the pipeline's methodology.</p>
+             </details>
+             <details open>
+                <summary><h4>Stage 2 Analysis</h4></summary>
+                <div class="collapsible-content">
+                    ${stage2.status === 'Not Run' ? `<p style="text-align: center; color: var(--text-secondary);">Did not pass Stage 1.</p>` : `
+                    <div class="output-box" style="margin-top: 0;">
+                        <div class="label">JWST Data Available</div>
+                        <div class="value" style="font-size: 1.8rem; color: ${stage2.hasJwstData ? 'var(--accent-green)' : 'var(--text-secondary)'};">${stage2.hasJwstData ? 'Yes' : 'No (Inferred)'}</div>
+                    </div>
+                    <div class="output-box">
+                        <div class="label">PHI Likelihood</div>
+                        <div class="value" style="color: ${phiColor};">${formatValue(stage2.phiLikelihood)}</div>
+                        <div id="phi-threshold-indicator" style="color: ${phiColor};">Threshold: ${pipelineState.thresholds.phi.toFixed(2)}</div>
+                    </div>
+                    `}
                 </div>
-            </details>
+             </details>
         </div>
     `;
 }
 
-function updateThreshold(key, value) {
-    pipelineState.thresholds[key] = parseFloat(value);
-    runFullPipeline(); // Re-run the entire pipeline with new thresholds
+function renderDiscussion() {
+    const discussionContainer = document.getElementById('results-discussion');
+    if (!discussionContainer) return;
+
+    const total = pipelineState.allData.length;
+    const stage1PassedCount = pipelineState.stage1Passed.length;
+    const shortlistedCount = pipelineState.finalShortlist.length;
+    const stage1FilterRate = total > 0 ? (100 * (total - stage1PassedCount) / total).toFixed(1) : 0;
+    
+    let discussionHTML = `
+        <h3>Pipeline Performance Summary</h3>
+        <p>
+            The two-stage AI pipeline illustrates a powerful strategy for exoplanet habitability analysis. Starting with an initial catalog of <strong>${total} candidates</strong>, the process efficiently narrows down the possibilities to identify the most promising targets for further study.
+        </p>
+        <ul>
+            <li><strong>Stage 1 (Broad Screening):</strong> By applying a dual filter of Earth Similarity Index (ESI ≥ ${pipelineState.thresholds.esi.toFixed(2)}) and AI-driven light curve analysis (LC Score ≥ ${pipelineState.thresholds.lc.toFixed(2)}), this stage successfully filtered out <strong>${total - stage1PassedCount} candidates (${stage1FilterRate}%)</strong>, leaving <strong>${stage1PassedCount}</strong> planets for more detailed analysis.</li>
+            <li><strong>Stage 2 (Targeted Refinement):</strong> The remaining candidates were evaluated using AI models trained on JWST data to infer atmospheric properties and calculate a PHI Likelihood score. This resulted in a final, highly-vetted shortlist of <strong>${shortlistedCount} prime candidates</strong> (PHI Likelihood ≥ ${pipelineState.thresholds.phi.toFixed(2)}).</li>
+        </ul>
+        <p>
+            This methodology demonstrates how AI can bridge data from different missions (Kepler and JWST), enabling a scalable and resource-efficient approach to prioritizing the most compelling targets in the search for life.
+        </p>
+    `;
+
+    discussionContainer.innerHTML = discussionHTML;
+    discussionContainer.style.display = 'block';
 }
 
-function renderDiscussion() {
-    const container = document.getElementById('results-discussion');
-    if (!container) return;
-
-    const { allData, stage1Passed, finalShortlist } = pipelineState;
-
-    if (allData.length === 0) {
-        container.style.display = 'none';
+function updateThreshold(key, value) {
+    const numericValue = parseFloat(value);
+    if (isNaN(numericValue) || numericValue < 0 || numericValue > 1) {
+        // Revert UI to old value if input is invalid
+        document.getElementById(`${key}-threshold`).value = pipelineState.thresholds[key].toFixed(2);
         return;
     }
-
-    container.style.display = 'block';
-
-    let content = `<h3>Discussion of Results</h3>
-<p>This interactive pipeline illustrates a modern, AI-augmented workflow for identifying potentially habitable exoplanets from large survey datasets. The core strategy is to use a multi-stage process that efficiently allocates computational and observational resources.</p>
-<ul>
-    <li><strong>From Broad Survey to Sharp Focus:</strong> We began with a dataset of <strong>${allData.length} Kepler candidates</strong>. The Stage 1 filter, combining the physics-based ESI metric with an AI check on signal quality, effectively narrowed this vast pool down to <strong>${stage1Passed.length} higher-quality targets</strong>. This demonstrates the power of using AI for rapid, large-scale data vetting.</li>
-    <li><strong>Prioritizing with Advanced AI:</strong> In Stage 2, a more sophisticated AI model, pre-trained on existing JWST data, inferred the atmospheric properties of the filtered candidates to produce a PHI-inspired likelihood score. This crucial step prioritizes the most scientifically valuable targets, resulting in a final, manageable shortlist of <strong>${finalShortlist.length} candidates</strong>.</li>
-    <li><strong>An Engine for Discovery:</strong> The final shortlist represents the pipeline's ultimate goal: to provide astronomers with a statistically robust, rank-ordered list of worlds that are most deserving of precious follow-up time with premier observatories like JWST. This data-driven approach ensures that the search for life is both efficient and effective.</li>
-</ul>`;
-
-    container.innerHTML = content;
+    pipelineState.thresholds[key] = numericValue;
+    document.getElementById(`${key}-threshold`).value = numericValue.toFixed(2);
+    
+    // Rerun the pipeline logic with new thresholds
+    runFullPipeline();
 }
