@@ -1,20 +1,37 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# AI for Astrophysics and Planetary Science
 
-# Run and deploy your AI Studio app
+An interactive conference poster, built to be read on a screen instead of pinned to a wall. Made for the International Space University.
 
-This contains everything you need to run your app locally.
+Open it at [mcbrallo.github.io/ISU-Poster-V5](https://mcbrallo.github.io/ISU-Poster-V5/).
 
-View your app in AI Studio: https://ai.studio/apps/drive/1IfFJ3iIrB13quCZH-zRpzXPGnBZ1Nqn5
+## What it does
 
-## Run Locally
+A normal poster gives you a static figure and asks you to trust it. This one lets you turn the knobs. You fly a 3D scene with the Kepler and JWST spacecraft in it, walk through the transit method on a light curve you can perturb, and run a small classifier in the browser to see how a machine separates planet candidates from false positives. The maths is typeset properly, so the equations read the way they read in a paper.
 
-**Prerequisites:**  Node.js
+Everything runs client side. There is no server, no API key and no build step in production: the whole poster is one HTML file, one module and a folder of assets.
 
+## About the data
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+The catalogue is a sample of real Kepler candidates, expanded synthetically to about 1,500 rows so the visualisations have enough points to be worth looking at. The expansion is seeded, so it produces the same catalogue every time. The named planets at the base of it are real, the copies around them are not, and nothing here should be read as a measurement.
+
+## Running it
+
+```bash
+npm install
+npm run dev
+```
+
+Then open the address Vite prints. To serve it as it is deployed, any static server pointed at the repository root will do.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `index.html` | The poster. Structure, styles and copy |
+| `index.js` | The scene, the charts and the classifier |
+| `data.js` | The Kepler sample and the seeded expansion |
+| `assets/` | The Kepler and JWST models, their images, and the ISU mark |
+
+## Built with
+
+three.js for the scene, Chart.js for the figures, TensorFlow.js for the classifier and KaTeX for the equations, all loaded from a CDN.
